@@ -1,5 +1,9 @@
 name: daily_data_pipeline
 
+permissions: 
+  id-token: write
+  contents: read
+
 on:
   schedule:
     - cron: "0 3 * * *" # runs daily at 3 AM UTC
