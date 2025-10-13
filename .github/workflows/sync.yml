@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}  # your full Supabase connection string
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
     steps:
       - name: Checkout repository
