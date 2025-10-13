@@ -2,14 +2,31 @@ import psycopg2
 import requests
 import time
 import os
+from urllib.parse import urlparse
 
-# Read the API key from environment (provided by GitHub Actions step env)
+# Read Google API key from environment
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
-    raise RuntimeError("GOOGLE_API_KEY environment variable is not set. In CI, ensure repo secret 'GOOGLE_API_KEY' is defined and passed to the step.")
+    raise RuntimeError("GOOGLE_API_KEY environment variable is not set")
+
+# Read DB URL from environment
+db_url = os.environ.get("SUPABASE_DB_URL")
+if not db_url:
+    raise RuntimeError("SUPABASE_DB_URL environment variable is not set")
+
+parsed_url = urlparse(db_url)
+
+def get_connection():
+    return psycopg2.connect(
+        dbname=parsed_url.path[1:],
+        user=parsed_url.username,
+        password=parsed_url.password,
+        host=parsed_url.hostname,
+        port=parsed_url.port
+    )
 
 def search_place_new_api(name, address, city):
-    """Search for a place using the NEW Google Places API"""
+    """Search for a place using Google Places API"""
     url = "https://places.googleapis.com/v1/places:searchText"
 
     headers = {
@@ -39,11 +56,7 @@ def search_place_new_api(name, address, city):
 
 def fetch_all_google_ratings():
     """Fetch and upsert Google ratings for all restaurants"""
-    conn = psycopg2.connect(
-        dbname="chicago_inspections",
-        user="clarkfannin",
-        host="localhost"
-    )
+    conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("SELECT id, dba_name, address, city FROM restaurants")
@@ -78,13 +91,13 @@ def fetch_all_google_ratings():
             print(f"✗ {name}: Not found on Google")
 
         conn.commit()
-        time.sleep(0.2)  # Rate limiting
+        time.sleep(0.2)  # rate limiting
 
     cur.close()
     conn.close()
 
-    print(f"\n✅ Fetched/Updated {fetched} Google ratings")
-    print(f"❌ Failed to find {failed} restaurants")
+    print(f"Fetched/Updated {fetched} Google ratings")
+    print(f"Failed to find {failed} restaurants")
 
 if __name__ == "__main__":
     fetch_all_google_ratings()
