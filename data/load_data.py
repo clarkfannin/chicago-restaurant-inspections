@@ -17,7 +17,6 @@ if not DB_URL:
 parsed_url = urlparse(DB_URL)
 
 def get_connection():
-    """Get a connection to the Supabase database."""
     print("Connecting to Supabase...", flush=True)
     conn = psycopg2.connect(
         dbname=parsed_url.path[1:],
@@ -36,15 +35,12 @@ def fetch_inspection_data(conn):
     cur.execute("SELECT MAX(inspection_date) FROM inspections;")
     last_date = cur.fetchone()[0]
     cur.close()
+    print(f"Last inspection date in DB: {last_date}", flush=True)
 
     if last_date:
-        print(f"Last inspection date: {last_date}", flush=True)
         filter_str = f"?$where=inspection_date>'{last_date.strftime('%m/%d/%Y')}'"
-
     else:
-        print("No previous inspections found, fetching all data...", flush=True)
         filter_str = ""
-
     url = f'https://data.cityofchicago.org/api/views/4ijn-s7e5/rows.csv{filter_str}'
     print(f"Fetching new inspections from Chicago API...\nURL: {url}", flush=True)
     headers = {'X-App-Token': CHICAGO_API_TOKEN}
@@ -56,14 +52,14 @@ def fetch_inspection_data(conn):
     return df
 
 def clean_data(df):
-    print("Cleaning data...", flush=True)
-    df['Inspection Date'] = pd.to_datetime(df['Inspection Date'], errors='coerce')
+    print('Cleaning data...', flush=True)
+    df['Inspection Date'] = pd.to_datetime(df['Inspection Date'], errors='coerce', format='%m/%d/%Y')
     df['License #'] = pd.to_numeric(df['License #'], errors='coerce').astype('Int64')
     df['Zip'] = pd.to_numeric(df['Zip'], errors='coerce').astype('Int64')
     df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
     df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
 
-    text_columns = ['DBA Name', 'AKA Name', 'Facility Type', 'Address', 'City', 'State', 'Results', 'Risk']
+    text_columns = ['DBA Name', 'AKA Name', 'Facility Type', 'Address', 'City', 'State', 'Results', 'Risk', 'Violations']
     for col in text_columns:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip()
@@ -72,7 +68,75 @@ def clean_data(df):
     print(f"Cleaned. {len(df)} valid records.", flush=True)
     return df
 
-# insert_restaurants and insert_inspections remain the same, with print statements
+def insert_restaurants(df, conn):
+    print("Inserting/updating restaurants...", flush=True)
+    cur = conn.cursor()
+    restaurants = df.groupby('License #').first().reset_index()
+    inserted = 0
+
+    for _, row in restaurants.iterrows():
+        try:
+            cur.execute("""
+                INSERT INTO restaurants 
+                (license_number, dba_name, aka_name, facility_type, address, city, state, zip, latitude, longitude)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (license_number) DO UPDATE SET
+                    dba_name = EXCLUDED.dba_name,
+                    aka_name = EXCLUDED.aka_name,
+                    address = EXCLUDED.address,
+                    city = EXCLUDED.city,
+                    state = EXCLUDED.state,
+                    zip = EXCLUDED.zip,
+                    latitude = EXCLUDED.latitude,
+                    longitude = EXCLUDED.longitude;
+            """, (
+                int(row['License #']) if pd.notna(row['License #']) else None,
+                row['DBA Name'],
+                row['AKA Name'],
+                row['Facility Type'],
+                row['Address'],
+                row['City'],
+                row['State'],
+                int(row['Zip']) if pd.notna(row['Zip']) else None,
+                float(row['Latitude']) if pd.notna(row['Latitude']) else None,
+                float(row['Longitude']) if pd.notna(row['Longitude']) else None
+            ))
+            inserted += 1
+        except Exception as e:
+            print(f"Error inserting restaurant {row['License #']}: {e}", flush=True)
+
+    conn.commit()
+    cur.close()
+    print(f"Inserted/updated {inserted} restaurants", flush=True)
+
+def insert_inspections(df, conn):
+    print("Inserting new inspections...", flush=True)
+    cur = conn.cursor()
+    inserted = 0
+
+    for _, row in df.iterrows():
+        try:
+            cur.execute("""
+                INSERT INTO inspections 
+                (inspection_id, restaurant_license, inspection_date, inspection_type, result, risk, violations)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (inspection_id) DO NOTHING;
+            """, (
+                int(row['Inspection ID']) if pd.notna(row['Inspection ID']) else None,
+                int(row['License #']) if pd.notna(row['License #']) else None,
+                row['Inspection Date'].date() if pd.notna(row['Inspection Date']) else None,
+                row['Inspection Type'],
+                row['Results'],
+                row['Risk'],
+                row['Violations'] if pd.notna(row['Violations']) else None
+            ))
+            inserted += 1
+        except Exception as e:
+            print(f"Error inserting inspection {row.get('Inspection ID', 'unknown')}: {e}", flush=True)
+
+    conn.commit()
+    cur.close()
+    print(f"Inserted {inserted} new inspections", flush=True)
 
 def main():
     start_time = datetime.now()
@@ -81,8 +145,7 @@ def main():
     try:
         conn = get_connection()
         df = fetch_inspection_data(conn)
-
-        if len(df) == 0:
+        if df.empty:
             print("No new inspections to load.", flush=True)
             conn.close()
             return
