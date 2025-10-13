@@ -6,6 +6,8 @@ import os
 from datetime import datetime
 from urllib.parse import urlparse
 
+CHICAGO_API_TOKEN = os.environ.get("CHICAGO_API_TOKEN")
+
 db_url = os.environ.get("SUPABASE_DB_URL")
 if not db_url:
     raise ValueError("SUPABASE_DB_URL environment variable not set")
@@ -23,17 +25,29 @@ def get_connection():
     )
 
 
-def fetch_inspection_data():
+def fetch_inspection_data(conn):
     print('Starting...')
-    url = 'https://data.cityofchicago.org/api/views/4ijn-s7e5/rows.csv'
-    headers = {'X-App-Token': 'hYbEzmjNHCSUUGU4vdQFJmPvk'}
+
+    cur = conn.cursor()
+    cur.execute("SELECT MAX(inspection_date) FROM inspections;")
+    last_date = cur.fetchone()[0]
+    cur.close()
+
+    if last_date:
+        filter_str = f"?$where=inspection_date>'{last_date.strftime('%Y-%m-%d')}'"
+    else:
+        filter_str = ""
+
+    url = f'https://data.cityofchicago.org/api/views/4ijn-s7e5/rows.csv{filter_str}'
+    headers = {'X-App-Token': CHICAGO_API_TOKEN}
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
 
     df = pd.read_csv(StringIO(response.text))
-    print(f'Fetched {len(df)} records.')
+    print(f'Fetched {len(df)} new records.')
     return df
+
 
 
 def clean_data(df):
