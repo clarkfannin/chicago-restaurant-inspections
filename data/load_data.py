@@ -38,7 +38,7 @@ def fetch_inspection_data(conn):
     print(f"Last inspection date in DB: {last_date}", flush=True)
 
     if last_date:
-        filter_str = f"?$where=inspection_date>'{last_date.strftime('%m/%d/%Y')}'"
+        filter_str = f"?$where=inspection_date%3E'{last_date.strftime('%m/%d/%Y')}'"
     else:
         filter_str = ""
     url = f'https://data.cityofchicago.org/api/views/4ijn-s7e5/rows.csv{filter_str}'
