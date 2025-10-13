@@ -9,6 +9,9 @@ jobs:
   run-pipeline:
     runs-on: ubuntu-latest
 
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}  # your full Supabase connection string
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,15 +28,22 @@ jobs:
         run: |
           echo "$GOOGLE_CREDENTIALS" | base64 --decode > credentials.json
 
+      - name: Fetch and load Chicago data
+        run: python data/load_data.py
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+
       - name: Run Google ratings update
         run: python data/update_google_ratings.py
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Run sync to Sheets
         run: python data/sync_to_sheets.py
         env:
           GOOGLE_APPLICATION_CREDENTIALS: credentials.json
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Clean up credentials
         run: rm credentials.json

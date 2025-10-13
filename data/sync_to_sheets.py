@@ -1,15 +1,15 @@
 import pandas as pd
+import os
 from sqlalchemy import create_engine
 import gspread
 from gspread_dataframe import set_with_dataframe
 from google.oauth2.service_account import Credentials
 
-# --- sql connection ---
-engine = create_engine("postgresql://clarkfannin@localhost:5432/chicago_inspections")
+DB_URL = os.environ.get("SUPABASE_DB_URL")
+engine = create_engine(DB_URL)
 
 tables = ["inspections", "google_ratings", "restaurants"]
 
-# --- google sheets setup ---
 creds = Credentials.from_service_account_file(
     "credentials.json",
     scopes=["https://www.googleapis.com/auth/spreadsheets",
