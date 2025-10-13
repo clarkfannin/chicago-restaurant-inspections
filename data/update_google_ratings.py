@@ -1,25 +1,27 @@
 import psycopg2
 import requests
 import time
+import os
 
-GOOGLE_API_KEY = 'AIzaSyC4-kYiH9srtEJROuo7qXPkDxvSN3HeKo0'
+# Read the API key from environment (provided by GitHub Actions step env)
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    raise RuntimeError("GOOGLE_API_KEY environment variable is not set. In CI, ensure repo secret 'GOOGLE_API_KEY' is defined and passed to the step.")
 
 def search_place_new_api(name, address, city):
     """Search for a place using the NEW Google Places API"""
     url = "https://places.googleapis.com/v1/places:searchText"
-    
+
     headers = {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': GOOGLE_API_KEY,
         'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount'
     }
-    
-    data = {
-        'textQuery': f"{name} {address} {city}"
-    }
-    
+
+    data = {'textQuery': f"{name} {address} {city}"}
+
     response = requests.post(url, json=data, headers=headers)
-    
+
     if response.status_code == 200:
         result = response.json()
         if result.get('places'):
@@ -32,40 +34,37 @@ def search_place_new_api(name, address, city):
             }
     else:
         print(f"Error: {response.status_code} - {response.text}")
-    
+
     return None
 
 def fetch_all_google_ratings():
-    """Fetch Google ratings for all restaurants"""
+    """Fetch and upsert Google ratings for all restaurants"""
     conn = psycopg2.connect(
         dbname="chicago_inspections",
         user="clarkfannin",
         host="localhost"
     )
     cur = conn.cursor()
-    
-    # Get restaurants that don't have Google ratings yet
-    cur.execute("""
-        SELECT r.id, r.dba_name, r.address, r.city
-        FROM restaurants r
-        LEFT JOIN google_ratings g ON r.id = g.restaurant_id
-        WHERE g.id IS NULL
-    """)
-    
+
+    cur.execute("SELECT id, dba_name, address, city FROM restaurants")
     restaurants = cur.fetchall()
     print(f"Fetching Google ratings for {len(restaurants)} restaurants...")
-    
+
     fetched = 0
     failed = 0
-    
+
     for rest_id, name, address, city in restaurants:
         place_data = search_place_new_api(name, address, city)
-        
-        if place_data and place_data.get('rating'):
+
+        if place_data and place_data.get('rating') is not None:
             cur.execute("""
                 INSERT INTO google_ratings (restaurant_id, place_id, rating, user_ratings_total)
                 VALUES (%s, %s, %s, %s)
-                ON CONFLICT (restaurant_id) DO NOTHING
+                ON CONFLICT (restaurant_id) 
+                DO UPDATE SET 
+                    place_id = EXCLUDED.place_id,
+                    rating = EXCLUDED.rating,
+                    user_ratings_total = EXCLUDED.user_ratings_total
             """, (
                 rest_id,
                 place_data.get('place_id'),
@@ -77,15 +76,15 @@ def fetch_all_google_ratings():
         else:
             failed += 1
             print(f"✗ {name}: Not found on Google")
-        
+
         conn.commit()
-        time.sleep(0.2)  # Rate limiting - be nice to Google's API
-    
+        time.sleep(0.2)  # Rate limiting
+
     cur.close()
     conn.close()
-    
-    print(f"\nFetched {fetched} Google ratings")
-    print(f"Failed to find {failed} restaurants")
+
+    print(f"\n✅ Fetched/Updated {fetched} Google ratings")
+    print(f"❌ Failed to find {failed} restaurants")
 
 if __name__ == "__main__":
     fetch_all_google_ratings()

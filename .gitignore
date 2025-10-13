@@ -1,0 +1,5 @@
+plot.py
+scheduler.py
+
+# Sensitive credentials should never be committed
+credentials.json
