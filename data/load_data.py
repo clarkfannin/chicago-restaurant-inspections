@@ -39,7 +39,8 @@ def fetch_inspection_data(conn):
 
     if last_date:
         print(f"Last inspection date: {last_date}", flush=True)
-        filter_str = f"?$where=inspection_date>'{last_date.strftime('%Y-%m-%d')}'"
+        filter_str = f"?$where=inspection_date>'{last_date.strftime('%m/%d/%Y')}'"
+
     else:
         print("No previous inspections found, fetching all data...", flush=True)
         filter_str = ""
