@@ -26,7 +26,6 @@ def get_connection():
     )
 
 def search_place_new_api(name, address, city):
-    """Search for a place using Google Places API"""
     url = "https://places.googleapis.com/v1/places:searchText"
 
     headers = {
@@ -55,7 +54,6 @@ def search_place_new_api(name, address, city):
     return None
 
 def fetch_all_google_ratings():
-    """Fetch and upsert Google ratings for all restaurants"""
     conn = get_connection()
     cur = conn.cursor()
 
