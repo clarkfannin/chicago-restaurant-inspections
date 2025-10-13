@@ -2,7 +2,7 @@ name: daily_data_pipeline
 
 on:
   schedule:
-    - cron: "0 3 * * *"  # runs daily at 3 AM UTC
+    - cron: "0 3 * * *" # runs daily at 3 AM UTC
   workflow_dispatch:
 
 jobs:
@@ -12,10 +12,17 @@ jobs:
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       CHICAGO_API_TOKEN: ${{ secrets.CHICAGO_API_TOKEN }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsS3Uploader
+          aws-region: us-east-2
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,10 +31,6 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Restore Google Sheets credentials
-        run: |
-          echo "$GOOGLE_CREDENTIALS" | base64 --decode > credentials.json
 
       - name: Fetch and load Chicago data
         run: python data/load_data.py
@@ -41,11 +44,19 @@ jobs:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
 
-      - name: Sync to Google Sheets
-        run: python data/sync_to_sheets.py
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: credentials.json
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+      - name: Dump Supabase tables to CSV
+        run: |
+          mkdir -p dumps
+          echo "Cleaning up old CSVs..."
+          rm -f dumps/*.csv
+          for table in restaurants inspections google_ratings; do
+            echo "Dumping $table..."
+            psql "$SUPABASE_DB_URL" -c "\copy $table TO 'dumps/$table.csv' CSV HEADER"
+          done
 
-      - name: Clean up credentials
-        run: rm credentials.json
+      - name: Upload CSVs to S3
+        run: |
+          for csv_file in dumps/*.csv; do
+            echo "Uploading $csv_file to S3..."
+            aws s3 cp "$csv_file" s3://inspection-dump/
+          done

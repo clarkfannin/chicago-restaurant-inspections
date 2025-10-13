@@ -46,6 +46,93 @@ def fetch_inspection_data(conn):
     print(f'Fetched {len(df)} new records.')
     return df
 
+def clean_data(df):
+    print('Cleaning...')
+    df['Inspection Date'] = pd.to_datetime(df['Inspection Date'], errors='coerce')
+    df['License #'] = pd.to_numeric(df['License #'], errors='coerce').astype('Int64')
+    df['Zip'] = pd.to_numeric(df['Zip'], errors='coerce').astype('Int64')
+    df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
+    df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
+
+    text_columns = ['DBA Name', 'AKA Name', 'Facility Type', 'Address', 'City', 'State', 'Results', 'Risk']
+    for col in text_columns:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+
+    df = df.dropna(subset=['License #', 'Inspection Date'])
+    print(f'Cleaned. {len(df)} valid records.')
+    return df
+
+def insert_restaurants(df, conn):
+    print("Inserting/updating restaurants...")
+    cur = conn.cursor()
+    restaurants = df.groupby('License #').first().reset_index()
+    inserted = 0
+
+    for _, row in restaurants.iterrows():
+        try:
+            cur.execute("""
+                INSERT INTO restaurants 
+                (license_number, dba_name, aka_name, facility_type, address, city, state, zip, latitude, longitude)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (license_number) DO UPDATE SET
+                    dba_name = EXCLUDED.dba_name,
+                    aka_name = EXCLUDED.aka_name,
+                    address = EXCLUDED.address,
+                    city = EXCLUDED.city,
+                    state = EXCLUDED.state,
+                    zip = EXCLUDED.zip,
+                    latitude = EXCLUDED.latitude,
+                    longitude = EXCLUDED.longitude;
+            """, (
+                int(row['License #']) if pd.notna(row['License #']) else None,
+                row['DBA Name'],
+                row['AKA Name'],
+                row['Facility Type'],
+                row['Address'],
+                row['City'],
+                row['State'],
+                int(row['Zip']) if pd.notna(row['Zip']) else None,
+                float(row['Latitude']) if pd.notna(row['Latitude']) else None,
+                float(row['Longitude']) if pd.notna(row['Longitude']) else None
+            ))
+            inserted += 1
+        except Exception as e:
+            print(f"Error inserting restaurant {row['License #']}: {e}")
+
+    conn.commit()
+    cur.close()
+    print(f"Inserted/updated {inserted} restaurants")
+
+def insert_inspections(df, conn):
+    print("Inserting new inspections...")
+    cur = conn.cursor()
+    inserted = 0
+
+    for _, row in df.iterrows():
+        try:
+            cur.execute("""
+                INSERT INTO inspections 
+                (inspection_id, restaurant_license, inspection_date, inspection_type, result, risk, violations)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (inspection_id) DO NOTHING;
+            """, (
+                int(row['Inspection ID']) if pd.notna(row['Inspection ID']) else None,
+                int(row['License #']) if pd.notna(row['License #']) else None,
+                row['Inspection Date'].date() if pd.notna(row['Inspection Date']) else None,
+                row['Inspection Type'],
+                row['Results'],
+                row['Risk'],
+                row['Violations'] if pd.notna(row['Violations']) else None
+            ))
+            inserted += 1
+        except Exception as e:
+            print(f"Error inserting inspection {row.get('Inspection ID', 'unknown')}: {e}")
+
+    conn.commit()
+    cur.close()
+    print(f"Inserted {inserted} new inspections")
+
 def main():
     start_time = datetime.now()
     print(f"Starting data load at {start_time}")
@@ -53,6 +140,11 @@ def main():
     try:
         conn = get_connection()
         df = fetch_inspection_data(conn)
+        if len(df) == 0:
+            print("No new inspections to load.")
+            conn.close()
+            return
+
         df = clean_data(df)
 
         insert_restaurants(df, conn)
@@ -65,7 +157,6 @@ def main():
     except Exception as e:
         print(f"\nError during data load: {e}")
         raise
-
 
 if __name__ == "__main__":
     main()
