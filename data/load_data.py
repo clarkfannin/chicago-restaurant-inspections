@@ -3,7 +3,7 @@ import pandas as pd
 from io import StringIO
 import psycopg2
 import os
-from datetime import datetime
+from datetime import datetime, date
 from urllib.parse import urlparse
 
 CHICAGO_API_TOKEN = os.environ.get("CHICAGO_API_TOKEN")
@@ -38,11 +38,11 @@ def fetch_inspection_data(conn):
     print(f"Last inspection date in DB: {last_date}", flush=True)
 
     if last_date:
-        if isinstance(last_date, (_datetime, _date)):
+        if isinstance(last_date, (datetime, date)):
             date_str = last_date.strftime('%m/%d/%Y')
         else:
             try:
-                parsed = _datetime.fromisoformat(str(last_date))
+                parsed = datetime.fromisoformat(str(last_date))
                 date_str = parsed.strftime('%m/%d/%Y')
             except Exception:
                 date_str = str(last_date)
