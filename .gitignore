@@ -1,5 +1,5 @@
 plot.py
 scheduler.py
-
-# Sensitive credentials should never be committed
+sync_to_sheets.py
 credentials.json
+setup_database.py
