@@ -69,18 +69,18 @@ def fetch_all_google_ratings():
 
         if place_data and place_data.get('rating') is not None:
             cur.execute("""
-                INSERT INTO google_ratings (restaurant_id, place_id, rating, user_ratings_total)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (restaurant_id) DO UPDATE SET
-                    place_id = EXCLUDED.place_id,
-                    rating = EXCLUDED.rating,
-                    user_ratings_total = EXCLUDED.user_ratings_total;
-            """, (
-                rest_id,
-                place_data.get('place_id'),
-                place_data.get('rating'),
-                place_data.get('user_ratings_total')
-            ))
+            INSERT INTO google_ratings (restaurant_id, place_id, rating, user_ratings_total)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (restaurant_id) DO UPDATE SET
+                place_id = EXCLUDED.place_id,
+                rating = EXCLUDED.rating,
+                user_ratings_total = EXCLUDED.user_ratings_total;
+        """, (
+            rest_id,
+            place_data.get('place_id'),
+            place_data.get('rating'),
+            place_data.get('user_ratings_total')
+        ))
 
             fetched += 1
             print(f"✓ {name}: {place_data.get('rating')} stars ({place_data.get('user_ratings_total')} reviews)")
