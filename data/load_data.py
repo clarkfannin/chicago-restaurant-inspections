@@ -29,7 +29,7 @@ def get_connection():
     return conn
 
 def fetch_inspection_data(conn):
-    """Fetch only new inspections since last date in DB (safe URL encoding)."""
+    """Fetch only new inspections since last date in DB."""
     print("Checking last inspection date in DB...", flush=True)
     cur = conn.cursor()
     cur.execute("SELECT MAX(inspection_date) FROM inspections;")
@@ -39,32 +39,27 @@ def fetch_inspection_data(conn):
 
     if last_date:
         if isinstance(last_date, (datetime, date)):
-            date_str = last_date.strftime('%m/%d/%Y')
+            date_str = last_date.strftime("%m/%d/%Y")
         else:
-            try:
-                parsed = datetime.fromisoformat(str(last_date))
-                date_str = parsed.strftime('%m/%d/%Y')
-            except Exception:
-                date_str = str(last_date)
-        where_clause = f"inspection_date>'{date_str}'"
-        print(f"Using WHERE clause: {where_clause}", flush=True)
+            date_str = str(last_date)
+
+        filter_str = f"?$where=inspection_date%3E'{date_str}'"
+        print(f"Using filter: {filter_str}", flush=True)
     else:
-        where_clause = None
-        print("No last_date found; will fetch all rows (first run).", flush=True)
+        filter_str = ""
+        print("No last_date found; fetching full dataset.", flush=True)
 
-    base_url = 'https://data.cityofchicago.org/api/views/4ijn-s7e5/rows.csv'
-    headers = {'X-App-Token': CHICAGO_API_TOKEN}
+    url = f"https://data.cityofchicago.org/api/views/4ijn-s7e5/rows.csv{filter_str}"
+    print(f"Final URL: {url}", flush=True)
 
-    params = {'$where': where_clause} if where_clause else None
-    print(f"Requesting Chicago API (base URL): {base_url}", flush=True)
-    response = requests.get(base_url, headers=headers, params=params, timeout=180)
-    print(f"Final request URL: {response.request.url}", flush=True)
-
+    headers = {"X-App-Token": CHICAGO_API_TOKEN}
+    response = requests.get(url, headers=headers, timeout=180)
     response.raise_for_status()
 
     df = pd.read_csv(StringIO(response.text))
     print(f"Fetched {len(df)} records from Chicago API.", flush=True)
     return df
+
 
 def clean_data(df):
     print('Cleaning data...', flush=True)
