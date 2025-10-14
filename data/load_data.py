@@ -138,10 +138,9 @@ def insert_inspections(df, conn):
     for _, row in df.iterrows():
         try:
             cur.execute("""
-                INSERT INTO inspections 
-                (inspection_id, restaurant_license, inspection_date, inspection_type, result, risk, violations)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (inspection_id) DO NOTHING;
+                INSERT INTO inspections (id, license_number, inspection_date, inspection_type, results, violations)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING;
             """, (
                 int(row['Inspection ID']) if pd.notna(row['Inspection ID']) else None,
                 int(row['License #']) if pd.notna(row['License #']) else None,
