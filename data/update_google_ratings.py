@@ -183,8 +183,4 @@ if __name__ == "__main__":
     if count == 0:
         print("No restaurants to process. All done!")
     else:
-        response = input("Type 'YES' to continue: ")
-        if response == "YES":
-            fetch_all_google_ratings()
-        else:
-            print("Cancelled.")
+        fetch_all_google_ratings()
