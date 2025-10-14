@@ -121,43 +121,14 @@ def update_ratings_from_existing_place_ids():
     print(f"💰 Total Cost: $0.00 (FREE!)", flush=True)
     print(f"💸 Money saved vs Text Search: ${total * 32 / 1000:.2f}", flush=True)
 
-def find_restaurants_without_place_ids():
-    """
-    Show which restaurants don't have place_ids yet
-    """
-    conn = get_connection()
-    cur = conn.cursor()
-    
-    cur.execute("""
-        SELECT COUNT(*) 
-        FROM restaurants 
-        WHERE id NOT IN (
-            SELECT restaurant_id 
-            FROM google_ratings 
-            WHERE place_id IS NOT NULL
-        )
-    """)
-    missing_count = cur.fetchone()[0]
-    
-    if missing_count > 0:
-        print(f"\n⚠️  {missing_count} restaurants don't have place_ids yet")
-        print(f"   Getting place_ids for these will cost ~${missing_count * 7.83 / 1000:.2f}")
-        print(f"   (After the first 10k are free)\n")
-    
-    cur.close()
-    conn.close()
-    
-    return missing_count
-
 if __name__ == "__main__":
-    print(f"\n{'='*50}", flush=True)
-    print(f"🎯 Checking database...", flush=True)
-    print(f"{'='*50}\n", flush=True)
+    print(f"\n{'='*50}")
+    print(f"🎯 Checking database...")
+    print(f"{'='*50}\n")
     
     conn = get_connection()
     cur = conn.cursor()
     
-    # Count restaurants with existing place_ids
     cur.execute("""
         SELECT COUNT(*) 
         FROM google_ratings 
@@ -169,17 +140,9 @@ if __name__ == "__main__":
     conn.close()
     
     if with_ids == 0:
-        print("❌ No place_ids found in database!", flush=True)
-        print("   You'll need to do an initial search to get place_ids", flush=True)
-        print("   (This will cost money)", flush=True)
+        print("❌ No place_ids found in database!")
+        print("   Nothing to update (script stays free).")
     else:
-        print(f"✅ Found {with_ids} restaurants with place_ids", flush=True)
-        print(f"💰 Updating these will be 100% FREE!\n", flush=True)
-        
-        missing = find_restaurants_without_place_ids()
-        
-        response = input("Update ratings for restaurants with place_ids? (YES/no): ")
-        if response in ["YES", "yes", "y"]:
-            update_ratings_from_existing_place_ids()
-        else:
-            print("Cancelled.", flush=True)
+        print(f"✅ Found {with_ids} restaurants with existing place_ids")
+        print(f"💰 Updating ratings... (100% FREE)\n")
+        update_ratings_from_existing_place_ids()
