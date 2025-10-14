@@ -56,6 +56,16 @@ def fetch_inspection_data(conn):
 
     df = pd.DataFrame(data)
     df.columns = [col.strip().replace("_", " ").title() for col in df.columns]
+    rename_map = {
+        "License": "License #",
+        "License ": "License #",
+        "Inspection Id": "Inspection ID",
+        "Inspection Type": "Inspection Type",
+        "Dba Name": "DBA Name",
+        "Aka Name": "AKA Name",
+}
+    df.rename(columns=rename_map, inplace=True)
+
     return df
 
 
