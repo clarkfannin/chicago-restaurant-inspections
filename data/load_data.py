@@ -55,7 +55,7 @@ def fetch_inspection_data(conn):
     print(f"Fetched {len(data)} records from JSON API.", flush=True)
 
     df = pd.DataFrame(data)
-    df.columns = [col.strip().title().replace("_", " ") for col in df.columns]
+    df.columns = [col.strip().replace("_", " ").title() for col in df.columns]
     return df
 
 
