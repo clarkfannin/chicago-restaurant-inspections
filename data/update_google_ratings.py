@@ -2,7 +2,7 @@ import psycopg2
 import requests
 import time
 import os
-from urllib.parse import urlparse, quote
+from urllib.parse import urlparse
 
 # Read Google API key from environment
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
@@ -25,44 +25,14 @@ def get_connection():
         port=parsed_url.port
     )
 
-def find_place_id(name, address, city):
-    """
-    Find Place using findplacefromtext - returns place_id
-    COST: $0 (FREE) when used with Find Place request
-    """
-    url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
-    
-    params = {
-        'input': f"{name}, {address}, {city}",
-        'inputtype': 'textquery',
-        'fields': 'place_id',  # Only request place_id to keep it free
-        'key': GOOGLE_API_KEY
-    }
-    
-    response = requests.get(url, params=params)
-    
-    if response.status_code == 200:
-        result = response.json()
-        if result.get('candidates') and len(result['candidates']) > 0:
-            return result['candidates'][0].get('place_id')
-        elif result.get('status') != 'OK':
-            print(f"  API Status: {result.get('status')}")
-    else:
-        print(f"  Error: {response.status_code}")
-    
-    return None
-
 def get_place_details_by_id(place_id):
     """
-    Get place details using place_id only
-    COST: $0 (FREE) - "Places API Place Details Essentials (IDs Only): Unlimited"
+    Get place details using EXISTING place_id
+    COST: $0 (100% FREE!) - "Places API Place Details Essentials (IDs Only): Unlimited"
     
-    CRITICAL: Must use place_id field (not fields parameter) to stay free!
+    This is free because you already have the place_id!
     """
-    url = "https://places.googleapis.com/v1/places/{place_id}"
-    
-    # Use the new Places API format with place_id in URL
-    formatted_url = f"https://places.googleapis.com/v1/{place_id}"
+    url = f"https://places.googleapis.com/v1/{place_id}"
     
     headers = {
         'Content-Type': 'application/json',
@@ -70,7 +40,7 @@ def get_place_details_by_id(place_id):
         'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount'
     }
     
-    response = requests.get(formatted_url, headers=headers)
+    response = requests.get(url, headers=headers)
     
     if response.status_code == 200:
         place = response.json()
@@ -81,87 +51,83 @@ def get_place_details_by_id(place_id):
             'user_ratings_total': place.get('userRatingCount')
         }
     else:
-        print(f"  Error getting details: {response.status_code} - {response.text}")
+        print(f"  Error: {response.status_code}", flush=True)
+        if response.status_code == 400:
+            print(f"  Response: {response.text}", flush=True)
     
     return None
 
-def fetch_all_google_ratings():
+def update_ratings_from_existing_place_ids():
+    """
+    Update ratings for restaurants that already have place_ids in the database
+    This is 100% FREE!
+    """
     conn = get_connection()
     cur = conn.cursor()
     
-    # Skip restaurants we already have data for
+    # Find all restaurants that have place_ids but need rating updates
     cur.execute("""
-        SELECT id, dba_name, address, city 
-        FROM restaurants 
-        WHERE id NOT IN (
-            SELECT restaurant_id 
-            FROM google_ratings 
-            WHERE place_id IS NOT NULL
-        )
+        SELECT restaurant_id, place_id 
+        FROM google_ratings 
+        WHERE place_id IS NOT NULL
     """)
-    restaurants = cur.fetchall()
+    existing_places = cur.fetchall()
     
-    total = len(restaurants)
-    print(f"📍 Fetching Google ratings for {total} restaurants...")
-    print(f"💰 COST: $0.00 (using FREE Place ID Lookup!)\n")
+    total = len(existing_places)
+    print(f"📍 Updating ratings for {total} restaurants with existing place_ids", flush=True)
+    print(f"💰 COST: $0.00 (100% FREE - using existing place_ids!)\n", flush=True)
     
-    fetched = 0
+    updated = 0
     failed = 0
     
-    for idx, (rest_id, name, address, city) in enumerate(restaurants, 1):
-        print(f"[{idx}/{total}] {name}...")
+    for idx, (rest_id, place_id) in enumerate(existing_places, 1):
+        cur.execute("SELECT dba_name FROM restaurants WHERE id = %s", (rest_id,))
+        name_result = cur.fetchone()
+        name = name_result[0] if name_result else "Unknown"
         
-        # Step 1: Find the place_id (FREE)
-        place_id = find_place_id(name, address, city)
+        print(f"[{idx}/{total}] {name}...", flush=True)
         
-        if not place_id:
-            failed += 1
-            print(f"  ✗ Could not find place_id\n")
-            time.sleep(0.1)
-            continue
-        
-        print(f"  Found place_id: {place_id}")
-        
-        # Step 2: Get details using place_id (FREE)
+        # Get fresh details using existing place_id (FREE!)
         place_data = get_place_details_by_id(place_id)
         
         if place_data and place_data.get('rating') is not None:
             cur.execute("""
-                INSERT INTO google_ratings (restaurant_id, place_id, rating, user_ratings_total)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (restaurant_id) DO UPDATE SET
-                    place_id = EXCLUDED.place_id,
-                    rating = EXCLUDED.rating,
-                    user_ratings_total = EXCLUDED.user_ratings_total
+                UPDATE google_ratings 
+                SET rating = %s, 
+                    user_ratings_total = %s,
+                    updated_at = NOW()
+                WHERE restaurant_id = %s
             """, (
-                rest_id,
-                place_data.get('place_id'),
                 place_data.get('rating'),
-                place_data.get('user_ratings_total')
+                place_data.get('user_ratings_total'),
+                rest_id
             ))
             
-            fetched += 1
-            print(f"  ✓ {place_data.get('rating')} stars ({place_data.get('user_ratings_total')} reviews)\n")
+            updated += 1
+            print(f"  ✓ {place_data.get('rating')} stars ({place_data.get('user_ratings_total')} reviews)\n", flush=True)
         else:
             failed += 1
-            print(f"  ✗ Could not get place details\n")
+            print(f"  ✗ Could not get place details\n", flush=True)
         
         conn.commit()
-        time.sleep(0.1)  # Be nice to the API
+        time.sleep(0.05)  # Be nice to the API
     
     cur.close()
     conn.close()
     
-    print(f"=" * 50)
-    print(f"✅ Fetched/Updated: {fetched} restaurants")
-    print(f"❌ Failed: {failed} restaurants")
-    print(f"💰 Total Cost: $0.00 (FREE!)")
-    print(f"💸 Money Saved vs Text Search: ${(fetched + failed) * 32 / 1000:.2f}")
+    print(f"=" * 50, flush=True)
+    print(f"✅ Updated: {updated} restaurants", flush=True)
+    print(f"❌ Failed: {failed} restaurants", flush=True)
+    print(f"💰 Total Cost: $0.00 (FREE!)", flush=True)
+    print(f"💸 Money saved vs Text Search: ${total * 32 / 1000:.2f}", flush=True)
 
-if __name__ == "__main__":
-    # Safety check
+def find_restaurants_without_place_ids():
+    """
+    Show which restaurants don't have place_ids yet
+    """
     conn = get_connection()
     cur = conn.cursor()
+    
     cur.execute("""
         SELECT COUNT(*) 
         FROM restaurants 
@@ -171,16 +137,49 @@ if __name__ == "__main__":
             WHERE place_id IS NOT NULL
         )
     """)
-    count = cur.fetchone()[0]
+    missing_count = cur.fetchone()[0]
+    
+    if missing_count > 0:
+        print(f"\n⚠️  {missing_count} restaurants don't have place_ids yet")
+        print(f"   Getting place_ids for these will cost ~${missing_count * 7.83 / 1000:.2f}")
+        print(f"   (After the first 10k are free)\n")
+    
     cur.close()
     conn.close()
     
-    print(f"\n{'='*50}")
-    print(f"🎯 Places to process: {count}")
-    print(f"💰 Estimated cost: $0.00 (FREE!)")
-    print(f"{'='*50}\n")
+    return missing_count
+
+if __name__ == "__main__":
+    print(f"\n{'='*50}", flush=True)
+    print(f"🎯 Checking database...", flush=True)
+    print(f"{'='*50}\n", flush=True)
     
-    if count == 0:
-        print("No restaurants to process. All done!")
+    conn = get_connection()
+    cur = conn.cursor()
+    
+    # Count restaurants with existing place_ids
+    cur.execute("""
+        SELECT COUNT(*) 
+        FROM google_ratings 
+        WHERE place_id IS NOT NULL
+    """)
+    with_ids = cur.fetchone()[0]
+    
+    cur.close()
+    conn.close()
+    
+    if with_ids == 0:
+        print("❌ No place_ids found in database!", flush=True)
+        print("   You'll need to do an initial search to get place_ids", flush=True)
+        print("   (This will cost money)", flush=True)
     else:
-        fetch_all_google_ratings()
+        print(f"✅ Found {with_ids} restaurants with place_ids", flush=True)
+        print(f"💰 Updating these will be 100% FREE!\n", flush=True)
+        
+        missing = find_restaurants_without_place_ids()
+        
+        response = input("Update ratings for restaurants with place_ids? (YES/no): ")
+        if response in ["YES", "yes", "y"]:
+            update_ratings_from_existing_place_ids()
+        else:
+            print("Cancelled.", flush=True)
