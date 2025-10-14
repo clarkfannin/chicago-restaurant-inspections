@@ -1,10 +1,9 @@
 import requests
 import pandas as pd
-from io import StringIO
 import psycopg2
 import os
-from datetime import datetime, date
-from urllib.parse import urlparse, quote
+from datetime import datetime
+from urllib.parse import urlparse
 
 CHICAGO_API_TOKEN = os.environ.get("CHICAGO_API_TOKEN")
 if not CHICAGO_API_TOKEN:
@@ -29,7 +28,6 @@ def get_connection():
     return conn
 
 def fetch_inspection_data(conn):
-    """Fetch only new inspections since last date in DB."""
     print("Checking last inspection date in DB...", flush=True)
     cur = conn.cursor()
     cur.execute("SELECT MAX(inspection_date) FROM inspections;")
@@ -38,29 +36,26 @@ def fetch_inspection_data(conn):
     print(f"Last inspection date in DB: {last_date}", flush=True)
 
     if last_date:
-        if isinstance(last_date, (datetime, date)):
-            date_str = last_date.strftime("%m/%d/%Y")
-        else:
-            date_str = str(last_date)
-
-        # encode the full filter expression safely
-        where_clause = quote(f"inspection_date>'{date_str}'", safe="")
-        filter_str = f"?$where={where_clause}"
-        print(f"Encoded filter: {filter_str}", flush=True)
+        date_str = last_date.strftime("%Y-%m-%d")
+        filter_str = f"?$where=inspection_date>'{date_str}'"
+        print(f"Filtering from date: {date_str}", flush=True)
     else:
         filter_str = ""
-        print("No last_date found; fetching full dataset.", flush=True)
+        print("No last_date found; fetching all data.", flush=True)
 
-    url = f"https://data.cityofchicago.org/api/views/4ijn-s7e5/rows.csv{filter_str}"
-    print(f"Final URL: {url}", flush=True)
+    url = f"https://data.cityofchicago.org/resource/4ijn-s7e5.json{filter_str}"
+    print(f"Query URL: {url}", flush=True)
 
     headers = {"X-App-Token": CHICAGO_API_TOKEN}
     response = requests.get(url, headers=headers, timeout=180)
     response.raise_for_status()
 
-    df = pd.read_csv(StringIO(response.text))
-    print(f"Fetched {len(df)} records from Chicago API.", flush=True)
+    data = response.json()
+    print(f"Fetched {len(data)} records from JSON API.", flush=True)
+
+    df = pd.DataFrame(data)
     return df
+
 
 
 
