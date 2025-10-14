@@ -28,6 +28,7 @@ def get_connection():
     return conn
 
 def fetch_inspection_data(conn):
+    
     print("Checking last inspection date in DB...", flush=True)
     cur = conn.cursor()
     cur.execute("SELECT MAX(inspection_date) FROM inspections;")
@@ -54,27 +55,29 @@ def fetch_inspection_data(conn):
     print(f"Fetched {len(data)} records from JSON API.", flush=True)
 
     df = pd.DataFrame(data)
+    df.columns = [col.strip().title().replace("_", " ") for col in df.columns]
     return df
 
 
 
 
 def clean_data(df):
-    print('Cleaning data...', flush=True)
-    df['Inspection Date'] = pd.to_datetime(df['Inspection Date'], errors='coerce', format='%m/%d/%Y')
-    df['License #'] = pd.to_numeric(df['License #'], errors='coerce').astype('Int64')
-    df['Zip'] = pd.to_numeric(df['Zip'], errors='coerce').astype('Int64')
-    df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
-    df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
+    if "Inspection Date" not in df.columns:
+        if "Inspectiondate" in df.columns:
+            df.rename(columns={"Inspectiondate": "Inspection Date"}, inplace=True)
+        else:
+            raise KeyError("Expected column 'inspection_date' or 'Inspection Date' not found.")
 
-    text_columns = ['DBA Name', 'AKA Name', 'Facility Type', 'Address', 'City', 'State', 'Results', 'Risk', 'Violations']
-    for col in text_columns:
+    df["Inspection Date"] = pd.to_datetime(df["Inspection Date"], errors="coerce")
+
+    df = df.dropna(subset=["Inspection Date"])
+
+    for col in ["Facility Type", "Risk", "Results", "Violations"]:
         if col in df.columns:
-            df[col] = df[col].astype(str).str.strip()
+            df[col] = df[col].fillna("Unknown")
 
-    df = df.dropna(subset=['License #', 'Inspection Date'])
-    print(f"Cleaned. {len(df)} valid records.", flush=True)
     return df
+
 
 def insert_restaurants(df, conn):
     print("Inserting/updating restaurants...", flush=True)
