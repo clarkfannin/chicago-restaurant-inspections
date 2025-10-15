@@ -42,12 +42,6 @@ jobs:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
           CHICAGO_API_TOKEN: ${{ secrets.CHICAGO_API_TOKEN }}
 
-      - name: Run Google ratings update
-        run: python data/update_google_ratings.py
-        env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
-
       - name: Dump Supabase tables to CSV
         run: |
           mkdir -p dumps
