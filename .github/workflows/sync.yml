@@ -6,7 +6,7 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 3 * * *" # runs daily at 3 AM UTC
+    - cron: "0 8 * * *" # runs daily at 3 AM UTC
   workflow_dispatch:
 
 jobs:
@@ -56,5 +56,5 @@ jobs:
         run: |
           for csv_file in dumps/*.csv; do
             echo "Uploading $csv_file to S3..."
-            aws s3 cp "$csv_file" s3://inspection-dump/
+            aws s3 cp "$csv_file" s3://inspection-data-dump/
           done
