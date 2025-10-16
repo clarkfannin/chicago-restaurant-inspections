@@ -43,7 +43,7 @@ jobs:
           CHICAGO_API_TOKEN: ${{ secrets.CHICAGO_API_TOKEN }}
 
       - name: Export transformed data for Tableau
-        run: python export_for_tableau.py
+        run: python data/export_for_tableau.py
 
       - name: Upload CSVs to S3
         run: |
