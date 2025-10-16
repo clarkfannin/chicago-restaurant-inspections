@@ -44,6 +44,9 @@ jobs:
 
       - name: Export transformed data for Tableau
         run: python data/export_for_tableau.py
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
 
       - name: Upload CSVs to S3
         run: |
