@@ -47,10 +47,15 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
-
       - name: Upload CSVs to S3
         run: |
           for csv_file in dumps/*.csv; do
             echo "Uploading $csv_file to S3..."
             aws s3 cp "$csv_file" s3://inspection-data-dump/
           done
+
+      - name: Sync S3 CSVs to Google Sheets
+        run: python scripts/sync_to_sheets.py
+        env:
+          GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
