@@ -23,12 +23,8 @@ for csv_name in CSV_FILES:
     obj = s3.get_object(Bucket=BUCKET_NAME, Key=csv_name)
     df = pd.read_csv(io.BytesIO(obj["Body"].read()))
     
-    df = df.replace([float('inf'), float('-inf')], None)
-    for col in df.columns:
-        if df[col].dtype == 'object':
-            df[col] = df[col].fillna('')
-        else:
-            df[col] = df[col].fillna(None)
+    df = df.replace([float('inf'), float('-inf')], float('nan'))
+    df = df.fillna('')
 
     sheet_tab = os.path.splitext(csv_name)[0]
 
