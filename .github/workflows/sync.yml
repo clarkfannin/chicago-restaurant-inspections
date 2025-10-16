@@ -6,7 +6,7 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 8 * * *" # runs daily at 3 AM UTC
+    - cron: "0 8 * * *" # runs daily at 3 AM CST
   workflow_dispatch:
 
 jobs:
@@ -42,15 +42,8 @@ jobs:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
           CHICAGO_API_TOKEN: ${{ secrets.CHICAGO_API_TOKEN }}
 
-      - name: Dump Supabase tables to CSV
-        run: |
-          mkdir -p dumps
-          echo "Cleaning up old CSVs..."
-          rm -f dumps/*.csv
-          for table in restaurants inspections google_ratings; do
-            echo "Dumping $table..."
-            psql "$SUPABASE_DB_URL" -c "\copy $table TO 'dumps/$table.csv' CSV HEADER"
-          done
+      - name: Export transformed data for Tableau
+        run: python export_for_tableau.py
 
       - name: Upload CSVs to S3
         run: |
