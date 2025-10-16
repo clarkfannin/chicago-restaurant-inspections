@@ -9,11 +9,11 @@ CHICAGO_API_TOKEN = os.environ.get("CHICAGO_API_TOKEN")
 if not CHICAGO_API_TOKEN:
     raise ValueError("CHICAGO_API_TOKEN environment variable not set")
 
-DB_URL = os.environ.get("SUPABASE_DB_URL")
-if not DB_URL:
+SUPABASE_DB_URL = os.environ.get("SUPABASE_DB_URL")
+if not SUPABASE_DB_URL:
     raise ValueError("SUPABASE_DB_URL environment variable not set")
 
-parsed_url = urlparse(DB_URL)
+parsed_url = urlparse(SUPABASE_DB_URL)
 
 def get_connection():
     print("Connecting to Supabase...", flush=True)

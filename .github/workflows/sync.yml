@@ -39,7 +39,7 @@ jobs:
       - name: Fetch and load Chicago data
         run: python data/load_data.py
         env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           CHICAGO_API_TOKEN: ${{ secrets.CHICAGO_API_TOKEN }}
 
       - name: Export transformed data for Tableau
