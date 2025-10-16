@@ -55,7 +55,7 @@ jobs:
           done
 
       - name: Sync S3 CSVs to Google Sheets
-        run: python scripts/sync_to_sheets.py
+        run: python data/s3_to_sheets.py
         env:
           GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
