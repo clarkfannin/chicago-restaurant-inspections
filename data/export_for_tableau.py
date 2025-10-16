@@ -1,12 +1,13 @@
 import pandas as pd
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from sqlalchemy import create_engine
 import re
 import os
 
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 if not SUPABASE_DB_URL:
     raise ValueError("SUPABASE_DB_URL environment variable not set")
+
+engine = create_engine(SUPABASE_DB_URL)
 
 VIOLATION_CATEGORIES = {
     **dict.fromkeys([18, 19, 20, 21, 22, 23, 24, 25, 30, 33, 34, 36], "Food Safety & Temperature"),
@@ -32,7 +33,6 @@ def map_categories(codes):
 
 def export_inspections(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
-    conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
     
     query = """
     SELECT i.id, i.inspection_id, i.restaurant_license, i.inspection_date, i.inspection_type,
@@ -43,15 +43,14 @@ def export_inspections(output_dir='dumps'):
     ORDER BY i.inspection_date DESC
     """
     
-    df = pd.read_sql(query, conn)
-    conn.close()
+    df = pd.read_sql(query, engine)
     
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
     df['violation_count'] = df['violation_codes'].apply(lambda x: len(x.split(',')) if x else 0)
     df = df.drop('violations', axis=1)
     
-    df = df.replace([float('inf'), float('-inf')], None).fillna('')
+    df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
     
     output = os.path.join(output_dir, 'inspections.csv')
     df.to_csv(output, index=False)
@@ -59,7 +58,6 @@ def export_inspections(output_dir='dumps'):
 
 def export_restaurants(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
-    conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
     
     query = """
     SELECT DISTINCT r.*
@@ -71,8 +69,9 @@ def export_restaurants(output_dir='dumps'):
     )
     """
     
-    df = pd.read_sql(query, conn)
-    conn.close()
+    df = pd.read_sql(query, engine)
+    
+    df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
     
     output = os.path.join(output_dir, 'restaurants.csv')
     df.to_csv(output, index=False)
@@ -80,7 +79,6 @@ def export_restaurants(output_dir='dumps'):
 
 def export_google_ratings(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
-    conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
     
     query = """
     SELECT gr.*
@@ -96,8 +94,9 @@ def export_google_ratings(output_dir='dumps'):
     )
     """
     
-    df = pd.read_sql(query, conn)
-    conn.close()
+    df = pd.read_sql(query, engine)
+    
+    df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
     
     output = os.path.join(output_dir, 'google_ratings.csv')
     df.to_csv(output, index=False)
