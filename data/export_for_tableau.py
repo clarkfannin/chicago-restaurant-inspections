@@ -1,14 +1,12 @@
 import pandas as pd
-from sqlalchemy import create_engine, text
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import re
 import os
 
-# --- ENV + CONFIG ---
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 if not SUPABASE_DB_URL:
     raise ValueError("SUPABASE_DB_URL environment variable not set")
-
-engine = create_engine(SUPABASE_DB_URL)
 
 VIOLATION_CATEGORIES = {
     **dict.fromkeys([18, 19, 20, 21, 22, 23, 24, 25, 30, 33, 34, 36], "Food Safety & Temperature"),
@@ -20,7 +18,6 @@ VIOLATION_CATEGORIES = {
     **dict.fromkeys([29, 32, 59, 60, 61, 62, 63], "Administrative/Compliance")
 }
 
-# --- HELPERS ---
 def extract_codes(text):
     if not text or pd.isna(text):
         return None
@@ -33,13 +30,10 @@ def map_categories(codes):
     categories = {VIOLATION_CATEGORIES.get(int(c.strip())) for c in codes.split(',') if VIOLATION_CATEGORIES.get(int(c.strip()))}
     return ', '.join(sorted(categories)) if categories else None
 
-def run_query(query):
-    with engine.connect() as conn:
-        return pd.read_sql(text(query), conn)
-
-# --- EXPORTERS ---
 def export_inspections(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
+    conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
+    
     query = """
     SELECT i.id, i.inspection_id, i.restaurant_license, i.inspection_date, i.inspection_type,
            i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
@@ -48,17 +42,25 @@ def export_inspections(output_dir='dumps'):
     WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
     ORDER BY i.inspection_date DESC
     """
-    df = run_query(query)
+    
+    df = pd.read_sql(query, conn)
+    conn.close()
+    
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
     df['violation_count'] = df['violation_codes'].apply(lambda x: len(x.split(',')) if x else 0)
     df = df.drop('violations', axis=1)
+    
+    df = df.replace([float('inf'), float('-inf')], None).fillna('')
+    
     output = os.path.join(output_dir, 'inspections.csv')
     df.to_csv(output, index=False)
     print(f"Inspections: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB")
 
 def export_restaurants(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
+    conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
+    
     query = """
     SELECT DISTINCT r.*
     FROM restaurants r
@@ -68,13 +70,18 @@ def export_restaurants(output_dir='dumps'):
         AND i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
     )
     """
-    df = run_query(query)
+    
+    df = pd.read_sql(query, conn)
+    conn.close()
+    
     output = os.path.join(output_dir, 'restaurants.csv')
     df.to_csv(output, index=False)
     print(f"Restaurants: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB")
 
 def export_google_ratings(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
+    conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
+    
     query = """
     SELECT gr.*
     FROM google_ratings gr
@@ -88,12 +95,14 @@ def export_google_ratings(output_dir='dumps'):
         )
     )
     """
-    df = run_query(query)
+    
+    df = pd.read_sql(query, conn)
+    conn.close()
+    
     output = os.path.join(output_dir, 'google_ratings.csv')
     df.to_csv(output, index=False)
     print(f"Google Ratings: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB")
 
-# --- MAIN ---
 if __name__ == "__main__":
     export_inspections()
     export_restaurants()
