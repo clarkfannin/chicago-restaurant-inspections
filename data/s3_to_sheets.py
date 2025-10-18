@@ -19,7 +19,7 @@ sh = gc.open_by_key(SHEET_ID)
 s3 = boto3.client("s3")
 
 for csv_name in CSV_FILES:
-    print(f"Syncing {csv_name}...")
+    print(f"Syncing {csv_name}...", flush=True)
     obj = s3.get_object(Bucket=BUCKET_NAME, Key=csv_name)
     df = pd.read_csv(io.BytesIO(obj["Body"].read()))
     
@@ -36,4 +36,4 @@ for csv_name in CSV_FILES:
 
     ws.update([df.columns.values.tolist()] + df.values.tolist())
 
-print("All files synced to Google Sheets!")
+print("All files synced to Google Sheets!", flush=True)
