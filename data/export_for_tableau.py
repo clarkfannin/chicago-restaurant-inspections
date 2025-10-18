@@ -84,7 +84,7 @@ def export_google_ratings(output_dir='dumps'):
     SELECT gr.*
     FROM google_ratings gr
     WHERE gr.restaurant_id IN (
-        SELECT DISTINCT r.license_number
+        SELECT DISTINCT r.id
         FROM restaurants r
         WHERE EXISTS (
             SELECT 1 FROM inspections i 
@@ -101,7 +101,7 @@ def export_google_ratings(output_dir='dumps'):
     output = os.path.join(output_dir, 'google_ratings.csv')
     df.to_csv(output, index=False)
     print(f"Google Ratings: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB")
-
+    
 if __name__ == "__main__":
     export_inspections()
     export_restaurants()
