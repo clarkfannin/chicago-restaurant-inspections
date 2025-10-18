@@ -72,6 +72,11 @@ for csv_name in CSV_FILES:
         if col in df.columns:
             col_idx = df.columns.get_loc(col) + 1
             col_letter = chr(64 + col_idx)
+            
+            if col in ['id', 'restaurant_id', 'license_number', 'inspection_id', 'user_ratings_total', 'zip', 'violation_count']:
+                pattern = "0"
+            else:
+                pattern = "0.0##"
 
             ws.format(f'{col_letter}2:{col_letter}', {
                 "numberFormat": {
