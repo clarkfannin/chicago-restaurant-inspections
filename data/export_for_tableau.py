@@ -19,6 +19,7 @@ VIOLATION_CATEGORIES = {
     **dict.fromkeys([29, 32, 59, 60, 61, 62, 63], "Administrative/Compliance")
 }
 
+# Facility types to INCLUDE (actual food service establishments)
 # Using UPPER() in SQL to handle case variations
 INCLUDED_FACILITY_KEYWORDS = [
     'RESTAURANT',
@@ -73,17 +74,17 @@ def export_inspections(output_dir='dumps'):
     
     facility_filter = build_facility_filter()
     
-    query = f"""
+    query = """
     SELECT i.id, i.inspection_id, i.restaurant_license, i.inspection_date, i.inspection_type,
-           i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
+        i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
     FROM inspections i
     JOIN restaurants r ON i.restaurant_license = r.license_number
     WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
-      AND ({facility_filter})
+    AND ({})
     ORDER BY i.inspection_date DESC
-    """
+    """.format(facility_filter)
     
-    df = pd.read_sql(query, engine)
+    df = pd.read_sql(query, engine, params={})
     
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
