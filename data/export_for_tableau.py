@@ -1,7 +1,7 @@
-import pandas as pd
 from sqlalchemy import create_engine, text
-import re
-import os
+import pandas as pd
+import re, os
+
 
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 if not SUPABASE_DB_URL:
@@ -70,38 +70,33 @@ def build_facility_filter():
 
 def export_inspections(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
-    
     facility_filter = build_facility_filter()
-    
-    query = """
+
+    query = f"""
     SELECT i.id, i.inspection_id, i.restaurant_license, i.inspection_date, i.inspection_type,
            i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
     FROM inspections i
     JOIN restaurants r ON i.restaurant_license = r.license_number
     WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
-      AND ({})
+      AND ({facility_filter})
     ORDER BY i.inspection_date DESC
-    """.format(facility_filter)
-    
-    df = pd.read_sql(query, engine)
-    
+    """
+
+    df = pd.read_sql(text(query), engine)  # ✅ fixed
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
     df['violation_count'] = df['violation_codes'].apply(lambda x: len(x.split(',')) if x else 0)
-    df = df.drop('violations', axis=1)
-    
-    df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
-    
+    df = df.drop('violations', axis=1).replace([float('inf'), float('-inf')], float('nan')).fillna('')
+
     output = os.path.join(output_dir, 'inspections.csv')
     df.to_csv(output, index=False)
     print(f"Inspections: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
 
 def export_restaurants(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
-    
     facility_filter = build_facility_filter()
-    
-    query = """
+
+    query = f"""
     SELECT DISTINCT r.*
     FROM restaurants r
     WHERE EXISTS (
@@ -109,23 +104,21 @@ def export_restaurants(output_dir='dumps'):
         WHERE i.restaurant_license = r.license_number
         AND i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
     )
-    AND ({})
-    """.format(facility_filter)
-    
-    df = pd.read_sql(query, engine)
-    
+    AND ({facility_filter})
+    """
+
+    df = pd.read_sql(text(query), engine)  # ✅ fixed
     df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
-    
+
     output = os.path.join(output_dir, 'restaurants.csv')
     df.to_csv(output, index=False)
     print(f"Restaurants: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
 
 def export_google_ratings(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
-    
     facility_filter = build_facility_filter()
-    
-    query = """
+
+    query = f"""
     SELECT gr.*
     FROM google_ratings gr
     WHERE gr.restaurant_id IN (
@@ -136,22 +129,13 @@ def export_google_ratings(output_dir='dumps'):
             WHERE i.restaurant_license = r.license_number
             AND i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
         )
-        AND ({})
+        AND ({facility_filter})
     )
-    """.format(facility_filter)
-    
-    df = pd.read_sql(query, engine)
-    
+    """
+
+    df = pd.read_sql(text(query), engine)  # ✅ fixed
     df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
-    
+
     output = os.path.join(output_dir, 'google_ratings.csv')
     df.to_csv(output, index=False)
     print(f"Google Ratings: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
-
-if __name__ == "__main__":
-    print("Exporting food service establishments only...", flush=True)
-    print(f"Including facilities matching: {', '.join(INCLUDED_FACILITY_KEYWORDS)}", flush=True)
-    export_inspections()
-    export_restaurants()
-    export_google_ratings()
-    print("Export complete!", flush=True)
