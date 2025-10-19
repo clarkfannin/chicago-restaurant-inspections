@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, text
 import pandas as pd
-import re, os
+import re
+import os
 
 
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
@@ -24,17 +25,21 @@ INCLUDED_FACILITY_KEYWORDS = [
     'RESTAURANT'
 ]
 
+
 def extract_codes(text):
     if not text or pd.isna(text):
         return None
     codes = re.findall(r'(?:^|\| )(\d+)\.', text)
     return ','.join(codes) if codes else None
 
+
 def map_categories(codes):
     if not codes:
         return None
-    categories = {VIOLATION_CATEGORIES.get(int(c.strip())) for c in codes.split(',') if VIOLATION_CATEGORIES.get(int(c.strip()))}
+    categories = {VIOLATION_CATEGORIES.get(int(c.strip())) for c in codes.split(
+        ',') if VIOLATION_CATEGORIES.get(int(c.strip()))}
     return ', '.join(sorted(categories)) if categories else None
+
 
 def build_facility_filter():
     """Build SQL WHERE clause for facility type filtering"""
@@ -43,30 +48,37 @@ def build_facility_filter():
         conditions.append(f"UPPER(r.facility_type) LIKE '%{keyword}%'")
     return " OR ".join(conditions)
 
+
 def export_inspections(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
     facility_filter = build_facility_filter()
 
     query = f"""
     SELECT i.id, i.inspection_id, i.restaurant_license, i.inspection_date, i.inspection_type,
-           i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
-    FROM inspections i
-    JOIN restaurants r ON i.restaurant_license = r.license_number
-    WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
-      AND ({facility_filter})
-    ORDER BY i.inspection_date DESC
+       i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
+FROM inspections i
+JOIN restaurants r ON i.restaurant_license = r.license_number
+WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
+  AND ({facility_filter})
+  AND i.result != 'Out of Business'
+ORDER BY i.inspection_date DESC
+
     """
 
     df = pd.read_sql(text(query), engine)
     print(f"Queried inspections — rows fetched: {len(df)}", flush=True)
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
-    df['violation_count'] = df['violation_codes'].apply(lambda x: len(x.split(',')) if x else 0)
-    df = df.drop('violations', axis=1).replace([float('inf'), float('-inf')], float('nan')).fillna('')
+    df['violation_count'] = df['violation_codes'].apply(
+        lambda x: len(x.split(',')) if x else 0)
+    df = df.drop('violations', axis=1).replace(
+        [float('inf'), float('-inf')], float('nan')).fillna('')
 
     output = os.path.join(output_dir, 'inspections.csv')
     df.to_csv(output, index=False)
-    print(f"Inspections: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
+    print(
+        f"Inspections: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
+
 
 def export_restaurants(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
@@ -89,7 +101,9 @@ def export_restaurants(output_dir='dumps'):
 
     output = os.path.join(output_dir, 'restaurants.csv')
     df.to_csv(output, index=False)
-    print(f"Restaurants: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
+    print(
+        f"Restaurants: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
+
 
 def export_google_ratings(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
@@ -117,11 +131,14 @@ def export_google_ratings(output_dir='dumps'):
 
     output = os.path.join(output_dir, 'google_ratings.csv')
     df.to_csv(output, index=False)
-    print(f"Google Ratings: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
+    print(
+        f"Google Ratings: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
+
 
 if __name__ == "__main__":
     print("Exporting food service establishments only...", flush=True)
-    print(f"Including facilities matching: {', '.join(INCLUDED_FACILITY_KEYWORDS)}", flush=True)
+    print(
+        f"Including facilities matching: {', '.join(INCLUDED_FACILITY_KEYWORDS)}", flush=True)
     export_inspections()
     export_restaurants()
     export_google_ratings()
