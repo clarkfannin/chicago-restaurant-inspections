@@ -21,32 +21,7 @@ VIOLATION_CATEGORIES = {
 
 # Using UPPER() in SQL to handle case variations
 INCLUDED_FACILITY_KEYWORDS = [
-    'RESTAURANT',
-    'TAVERN',
-    'BAR',
-    'BAKERY',
-    'CATERING',
-    'MOBILE FOOD',
-    'MOBILE PREPARED FOOD',
-    'MOBILE FROZEN DESSERTS',
-    'BANQUET',
-    'BREWERY',
-    'GOLDEN DINER',
-    'KIOSK',
-    'SPECIAL EVENT',
-    'POP-UP',
-    'SHARED KITCHEN',
-    'COFFEE',
-    'ICE CREAM',
-    'NIGHT CLUB',
-    'NIGHTCLUB',
-    'MUSIC VENUE',
-    'DINER',
-    'CAFE',
-    'CAFETERIA',
-    'ROOFTOP',
-    'RIVERWALK',
-    'EVENT SPACE'
+    'RESTAURANT'
 ]
 
 def extract_codes(text):
