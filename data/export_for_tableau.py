@@ -19,22 +19,34 @@ VIOLATION_CATEGORIES = {
     **dict.fromkeys([29, 32, 59, 60, 61, 62, 63], "Administrative/Compliance")
 }
 
-# Facility types to EXCLUDE (non-restaurants)
-EXCLUDED_FACILITY_TYPES = [
-    'Grocery Store', 'GROCERY STORE', 'GROCERY/GAS STATION', 'GROCERY STORE/GAS STATION',
-    'GROCERY/RESTAURANT', 'grocery/butcher',
-    'School', 'CHARTER SCHOOL', 'PRIVATE SCHOOL', 'Private School', 'COOKING SCHOOL', 'CULINARY SCHOOL',
-    "Children's Services Facility", '1023 CHILDERN\'S SERVICES FACILITY', '1023-CHILDREN\'S SERVICES FACILITY', '1023',
-    'Daycare (2 - 6 Years)', 'Daycare Above and Under 2 Years', 'Daycare Combo 1586', 
-    'Daycare (Under 2 Years)', 'DAYCARE', 'Daycare (2 Years)', 'ADULT DAYCARE',
-    'Hospital', 'Long Term Care', 'NURSING HOME', 'SUPPORTIVE LIVING',
-    'Liquor', 'LIQUOR STORE', 'WINE STORE',
-    'GAS STATION', 'gas station', 'GAS STATION/GROCERY', 'GAS STATION/MINI MART',
-    'STORE', 'CONVENIENCE STORE', 'CONVENIENCE', 'convenience', 'convenience store',
-    'Wholesale', 'WAREHOUSE',
-    'HOTEL', 'THEATER', 'THEATRE', 'MOVIE THEATER', 'MOVIE THEATRE',
-    'Shelter', 'LIVE POULTRY', 'FITNESS CENTER', 'Pool',
-    'HERBALIFE', 'Other'
+# Using UPPER() in SQL to handle case variations
+INCLUDED_FACILITY_KEYWORDS = [
+    'RESTAURANT',
+    'TAVERN',
+    'BAR',
+    'BAKERY',
+    'CATERING',
+    'MOBILE FOOD',
+    'MOBILE PREPARED FOOD',
+    'MOBILE FROZEN DESSERTS',
+    'BANQUET',
+    'BREWERY',
+    'GOLDEN DINER',
+    'KIOSK',
+    'SPECIAL EVENT',
+    'POP-UP',
+    'SHARED KITCHEN',
+    'COFFEE',
+    'ICE CREAM',
+    'NIGHT CLUB',
+    'NIGHTCLUB',
+    'MUSIC VENUE',
+    'DINER',
+    'CAFE',
+    'CAFETERIA',
+    'ROOFTOP',
+    'RIVERWALK',
+    'EVENT SPACE'
 ]
 
 def extract_codes(text):
@@ -49,20 +61,29 @@ def map_categories(codes):
     categories = {VIOLATION_CATEGORIES.get(int(c.strip())) for c in codes.split(',') if VIOLATION_CATEGORIES.get(int(c.strip()))}
     return ', '.join(sorted(categories)) if categories else None
 
+def build_facility_filter():
+    """Build SQL WHERE clause for facility type filtering"""
+    conditions = []
+    for keyword in INCLUDED_FACILITY_KEYWORDS:
+        conditions.append(f"UPPER(r.facility_type) LIKE '%{keyword}%'")
+    return " OR ".join(conditions)
+
 def export_inspections(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
     
-    query = """
+    facility_filter = build_facility_filter()
+    
+    query = f"""
     SELECT i.id, i.inspection_id, i.restaurant_license, i.inspection_date, i.inspection_type,
            i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
     FROM inspections i
     JOIN restaurants r ON i.restaurant_license = r.license_number
     WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
-      AND (r.facility_type NOT IN %(excluded_types)s OR r.facility_type IS NULL)
+      AND ({facility_filter})
     ORDER BY i.inspection_date DESC
     """
     
-    df = pd.read_sql(query, engine, params={'excluded_types': tuple(EXCLUDED_FACILITY_TYPES)})
+    df = pd.read_sql(query, engine)
     
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
@@ -78,7 +99,9 @@ def export_inspections(output_dir='dumps'):
 def export_restaurants(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
     
-    query = """
+    facility_filter = build_facility_filter()
+    
+    query = f"""
     SELECT DISTINCT r.*
     FROM restaurants r
     WHERE EXISTS (
@@ -86,10 +109,10 @@ def export_restaurants(output_dir='dumps'):
         WHERE i.restaurant_license = r.license_number
         AND i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
     )
-    AND (r.facility_type NOT IN %(excluded_types)s OR r.facility_type IS NULL)
+    AND ({facility_filter})
     """
     
-    df = pd.read_sql(query, engine, params={'excluded_types': tuple(EXCLUDED_FACILITY_TYPES)})
+    df = pd.read_sql(query, engine)
     
     df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
     
@@ -100,7 +123,9 @@ def export_restaurants(output_dir='dumps'):
 def export_google_ratings(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
     
-    query = """
+    facility_filter = build_facility_filter()
+    
+    query = f"""
     SELECT gr.*
     FROM google_ratings gr
     WHERE gr.restaurant_id IN (
@@ -111,11 +136,11 @@ def export_google_ratings(output_dir='dumps'):
             WHERE i.restaurant_license = r.license_number
             AND i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
         )
-        AND (r.facility_type NOT IN %(excluded_types)s OR r.facility_type IS NULL)
+        AND ({facility_filter})
     )
     """
     
-    df = pd.read_sql(query, engine, params={'excluded_types': tuple(EXCLUDED_FACILITY_TYPES)})
+    df = pd.read_sql(query, engine)
     
     df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
     
@@ -124,7 +149,8 @@ def export_google_ratings(output_dir='dumps'):
     print(f"Google Ratings: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
 
 if __name__ == "__main__":
-    print("Exporting restaurant data only (excluding non-restaurants)...", flush=True)
+    print("Exporting food service establishments only...", flush=True)
+    print(f"Including facilities matching: {', '.join(INCLUDED_FACILITY_KEYWORDS)}", flush=True)
     export_inspections()
     export_restaurants()
     export_google_ratings()
