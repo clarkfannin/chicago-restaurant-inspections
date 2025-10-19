@@ -3,7 +3,7 @@ import pandas as pd
 import re, os
 
 
-SUPABASE_DB_URL = 'postgresql://postgres.arfutvgrtgogpyaeoftv:FenderJaguar2003!@aws-1-us-east-2.pooler.supabase.com:6543/postgres'
+SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 if not SUPABASE_DB_URL:
     raise ValueError("SUPABASE_DB_URL environment variable not set")
 
