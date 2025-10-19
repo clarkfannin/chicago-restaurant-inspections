@@ -3,7 +3,7 @@ import pandas as pd
 import re, os
 
 
-SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
+SUPABASE_DB_URL = 'postgresql://postgres.arfutvgrtgogpyaeoftv:FenderJaguar2003!@aws-1-us-east-2.pooler.supabase.com:6543/postgres'
 if not SUPABASE_DB_URL:
     raise ValueError("SUPABASE_DB_URL environment variable not set")
 
@@ -82,7 +82,8 @@ def export_inspections(output_dir='dumps'):
     ORDER BY i.inspection_date DESC
     """
 
-    df = pd.read_sql(text(query), engine)  # ✅ fixed
+    df = pd.read_sql(text(query), engine)
+    print(f"Queried inspections — rows fetched: {len(df)}", flush=True)
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
     df['violation_count'] = df['violation_codes'].apply(lambda x: len(x.split(',')) if x else 0)
@@ -107,7 +108,8 @@ def export_restaurants(output_dir='dumps'):
     AND ({facility_filter})
     """
 
-    df = pd.read_sql(text(query), engine)  # ✅ fixed
+    df = pd.read_sql(text(query), engine)
+    print(f"Queried inspections — rows fetched: {len(df)}", flush=True)
     df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
 
     output = os.path.join(output_dir, 'restaurants.csv')
@@ -133,9 +135,19 @@ def export_google_ratings(output_dir='dumps'):
     )
     """
 
-    df = pd.read_sql(text(query), engine)  # ✅ fixed
+    df = pd.read_sql(text(query), engine)
+    print(f"Queried inspections — rows fetched: {len(df)}", flush=True)
+
     df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
 
     output = os.path.join(output_dir, 'google_ratings.csv')
     df.to_csv(output, index=False)
     print(f"Google Ratings: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
+
+if __name__ == "__main__":
+    print("Exporting food service establishments only...", flush=True)
+    print(f"Including facilities matching: {', '.join(INCLUDED_FACILITY_KEYWORDS)}", flush=True)
+    export_inspections()
+    export_restaurants()
+    export_google_ratings()
+    print("Export complete!", flush=True)
