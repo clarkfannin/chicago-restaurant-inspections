@@ -55,29 +55,37 @@ def export_inspections(output_dir='dumps'):
 
     query = f"""
     SELECT i.id, i.inspection_id, i.restaurant_license, i.inspection_date, i.inspection_type,
-       i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
-FROM inspections i
-JOIN restaurants r ON i.restaurant_license = r.license_number
-WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
-  AND ({facility_filter})
-  AND i.result != 'Out of Business'
-ORDER BY i.inspection_date DESC
-
+           i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
+    FROM inspections i
+    JOIN restaurants r ON i.restaurant_license = r.license_number
+    WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
+      AND ({facility_filter})
+      AND i.result != 'Out of Business'
+    ORDER BY i.inspection_date DESC
     """
 
     df = pd.read_sql(text(query), engine)
     print(f"Queried inspections — rows fetched: {len(df)}", flush=True)
+
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
-    df['violation_count'] = df['violation_codes'].apply(
-        lambda x: len(x.split(',')) if x else 0)
-    df = df.drop('violations', axis=1).replace(
-        [float('inf'), float('-inf')], float('nan')).fillna('')
+    df['violation_count'] = df['violation_codes'].apply(lambda x: len(x.split(',')) if x else 0)
+
+    df_expanded = df.assign(
+        violation_category=df['violation_categories'].str.split(', ')
+    ).explode('violation_category')
+
+    df_expanded['category_violation_count'] = df_expanded.groupby(
+        ['id', 'violation_category']
+    )['violation_category'].transform('count')
+
+    df_expanded = df_expanded.drop(['violations', 'violation_categories'], axis=1)
+
+    df_expanded = df_expanded.replace([float('inf'), float('-inf')], float('nan')).fillna('')
 
     output = os.path.join(output_dir, 'inspections.csv')
-    df.to_csv(output, index=False)
-    print(
-        f"Inspections: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
+    df_expanded.to_csv(output, index=False)
+    print(f"Inspections: {len(df_expanded):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
 
 
 def export_restaurants(output_dir='dumps'):
