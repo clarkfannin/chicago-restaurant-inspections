@@ -1,5 +1,5 @@
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import re
 import os
 
@@ -19,7 +19,6 @@ VIOLATION_CATEGORIES = {
     **dict.fromkeys([29, 32, 59, 60, 61, 62, 63], "Administrative/Compliance")
 }
 
-# Facility types to INCLUDE (actual food service establishments)
 # Using UPPER() in SQL to handle case variations
 INCLUDED_FACILITY_KEYWORDS = [
     'RESTAURANT',
@@ -113,7 +112,7 @@ def export_restaurants(output_dir='dumps'):
     AND ({})
     """.format(facility_filter)
     
-    df = pd.read_sql(query, engine, params={})
+    df = pd.read_sql(query, engine)
     
     df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
     
@@ -141,7 +140,7 @@ def export_google_ratings(output_dir='dumps'):
     )
     """.format(facility_filter)
     
-    df = pd.read_sql(query, engine, params={})
+    df = pd.read_sql(query, engine)
     
     df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
     
