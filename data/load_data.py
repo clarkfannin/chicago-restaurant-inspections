@@ -2,8 +2,9 @@ import requests
 import pandas as pd
 import psycopg2
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
+
 
 #Targeted clean-up for biggest chains
 CHAIN_VARIANTS = {
@@ -47,8 +48,9 @@ def fetch_inspection_data(conn):
     print(f"Last inspection date in DB: {last_date}", flush=True)
 
     if last_date:
-        date_str = last_date.strftime("%Y-%m-%d")
-        filter_str = f"?$where=inspection_date>'{date_str}'"
+        date_str = (last_date - timedelta(days=7)).strftime("%Y-%m-%d")
+        filter_str = f"?$where=inspection_date>='{date_str}'"
+
         print(f"Filtering from date: {date_str}", flush=True)
     else:
         filter_str = ""
