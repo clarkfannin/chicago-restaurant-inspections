@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 CHAIN_VARIANTS = {
     "popeyes": ["popeyes", "popeye's"],
     "wendy's": ["wendys", "wendy's"],
-    "mcdonald's": ["mcdonalds", "mcdonald's" "mc donalds", "mc donald's"],
+    "mcdonald's": ["mcdonalds", "mcdonald's", "mc donalds", "mc donald's"],
     "arby's": ["arbys", "arby's"],
     "kfc": ["kfc", "kentucky fried chicken"],
     "little caesars": ["little caesars", "little caesar's", "little caesar"]
@@ -102,16 +102,14 @@ def clean_data(df):
 
 def standardize_chain_names(df):
     df["AKA Name"] = df["AKA Name"].astype(str)
-    df["chain_name"] = df["AKA Name"].str.lower()
 
     for canonical, variants in CHAIN_VARIANTS.items():
         for variant in variants:
-            mask = df["chain_name"].str.contains(variant, case=False, na=False)
-            df.loc[mask, "chain_name"] = canonical
-
-    df["chain_name"] = df["chain_name"].str.upper()
+            mask = df["AKA Name"].str.contains(variant, case=False, na=False)
+            df.loc[mask, "AKA Name"] = canonical.upper()  # overwrite directly and make uppercase
 
     return df
+
 
 
 
