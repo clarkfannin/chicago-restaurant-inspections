@@ -5,6 +5,16 @@ import os
 from datetime import datetime
 from urllib.parse import urlparse
 
+#Targeted clean-up for biggest chains
+CHAIN_VARIANTS = {
+    "popeyes": ["popeyes", "popeye's"],
+    "wendy's": ["wendys", "wendy's"],
+    "mcdonald's": ["mcdonalds", "mcdonald's" "mc donalds", "mc donald's"],
+    "arby's": ["arbys", "arby's"],
+    "kfc": ["kfc", "kentucky fried chicken"],
+    "little caesars": ["little caesars", "little caesar's", "little caesar"]
+}
+
 CHICAGO_API_TOKEN = os.environ.get("CHICAGO_API_TOKEN")
 if not CHICAGO_API_TOKEN:
     raise ValueError("CHICAGO_API_TOKEN environment variable not set")
@@ -87,6 +97,20 @@ def clean_data(df):
             df[col] = df[col].fillna("Unknown")
 
     return df
+
+def standardize_chain_names(df):
+    df["AKA Name"] = df["AKA Name"].astype(str)
+    df["chain_name"] = df["AKA Name"].str.lower()
+
+    for canonical, variants in CHAIN_VARIANTS.items():
+        for variant in variants:
+            mask = df["chain_name"].str.contains(variant, case=False, na=False)
+            df.loc[mask, "chain_name"] = canonical
+
+    df["chain_name"] = df["chain_name"].str.upper()
+
+    return df
+
 
 
 def insert_restaurants(df, conn):
@@ -177,6 +201,7 @@ def main():
             return
 
         df = clean_data(df)
+        df = standardize_chain_names(df)
         insert_restaurants(df, conn)
         insert_inspections(df, conn)
 

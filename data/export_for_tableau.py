@@ -65,18 +65,15 @@ def export_inspections(output_dir='dumps'):
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
     df['violation_count'] = df['violation_codes'].apply(lambda x: len(x.split(',')) if x else 0)
 
-    # --- explode by category ---
     df_expanded = df.assign(
         violation_category=df['violation_categories'].str.split(', ')
     ).explode('violation_category')
 
-    # --- fix 1: only one total per inspection (prevents double SUM) ---
     df_expanded['violation_count'] = df_expanded.duplicated('id').map({True: 0, False: None})
     df_expanded['violation_count'] = df_expanded['violation_count'].fillna(
         df.groupby('id')['violation_count'].transform('first')
     )
 
-    # --- fix 2: compute true per-category violation count ---
     df_expanded['category_violation_count'] = df_expanded.groupby(
         ['id', 'violation_category']
     )['violation_category'].transform('count')
