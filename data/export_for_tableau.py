@@ -60,30 +60,36 @@ def export_inspections(output_dir='dumps'):
     df = pd.read_sql(text(query), engine)
     print(f"Queried inspections — rows fetched: {len(df)}", flush=True)
 
-    # --- extract codes and categories ---
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
     df['violation_count'] = df['violation_codes'].apply(lambda x: len(x.split(',')) if x else 0)
 
-    df_expanded = df.assign(
-        violation_category=df['violation_categories'].str.split(', ')
-    ).explode('violation_category')
-
-    df_expanded['violation_count'] = df_expanded.duplicated('id').map({True: 0, False: None})
-    df_expanded['violation_count'] = df_expanded['violation_count'].fillna(
-        df.groupby('id')['violation_count'].transform('first')
+    df_expanded = (
+        df[['id', 'violation_categories']]
+        .assign(violation_category=lambda d: d['violation_categories'].str.split(', '))
+        .explode('violation_category')
+        .dropna(subset=['violation_category'])
     )
 
-    df_expanded['category_violation_count'] = df_expanded.groupby(
-        ['id', 'violation_category']
-    )['violation_category'].transform('count')
+    category_counts = (
+        df_expanded.groupby(['id', 'violation_category'])
+        .size()
+        .reset_index(name='category_violation_count')
+    )
 
-    df_expanded = df_expanded.drop(['violations', 'violation_categories'], axis=1)
-    df_expanded = df_expanded.replace([float('inf'), float('-inf')], float('nan')).fillna('')
+    df_merged = df.merge(category_counts, on='id', how='left')
 
-    output = os.path.join(output_dir, 'inspections.csv')
-    df_expanded.to_csv(output, index=False)
-    print(f"Inspections: {len(df_expanded):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
+    df_merged = df_merged.drop(['violations'], axis=1)
+    df_merged = df_merged.replace([float('inf'), float('-inf')], float('nan')).fillna('')
+    summary_out = os.path.join(output_dir, 'inspections_summary.csv')
+    expanded_out = os.path.join(output_dir, 'inspection_categories.csv')
+
+    df.to_csv(summary_out, index=False)
+    df_merged.to_csv(expanded_out, index=False)
+
+    print(f"Inspections summary: {len(df):,} rows")
+    print(f"Expanded categories: {len(df_merged):,} rows")
+
 
 
 def export_restaurants(output_dir='dumps'):
