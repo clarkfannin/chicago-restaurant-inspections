@@ -47,7 +47,7 @@ def export_inspections(output_dir='dumps'):
     facility_filter = build_facility_filter()
 
     query = f"""
-    SELECT i.id, i.inspection_id, i.restaurant_license, i.inspection_date, i.inspection_type,
+    SELECT i.id, i.restaurant_license, i.inspection_date, i.inspection_type,
            i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
     FROM inspections i
     JOIN restaurants r ON i.restaurant_license = r.license_number

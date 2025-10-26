@@ -71,7 +71,7 @@ def fetch_inspection_data(conn):
     rename_map = {
         "License": "License #",
         "License ": "License #",
-        "Inspection Id": "Inspection ID",
+        "Inspection Id": "ID",
         "Inspection Type": "Inspection Type",
         "Dba Name": "DBA Name",
         "Aka Name": "AKA Name",
@@ -165,7 +165,7 @@ def insert_inspections(df, conn):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (id) DO NOTHING;
             """, (
-                int(row['Inspection ID']) if pd.notna(row['Inspection ID']) else None,  # id
+                int(row['ID']) if pd.notna(row['ID']) else None,
                 int(row['License #']) if pd.notna(row['License #']) else None,
                 row['Inspection Date'].date() if pd.notna(row['Inspection Date']) else None,
                 row['Inspection Type'],
@@ -177,7 +177,7 @@ def insert_inspections(df, conn):
     
             inserted += 1
         except Exception as e:
-            print(f"Error inserting inspection {row.get('Inspection ID', 'unknown')}: {e}", flush=True)
+            print(f"Error inserting inspection {row.get('ID', 'unknown')}: {e}", flush=True)
 
     conn.commit()
     cur.close()
