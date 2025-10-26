@@ -20,7 +20,7 @@ s3 = boto3.client("s3")
 
 NUMERIC_COLUMNS = {
     'restaurants': ['id', 'license_number', 'zip', 'latitude', 'longitude'],
-    'inspections': ['id', 'inspection_id', 'restaurant_license', 'violation_count'],
+    'inspections': ['id', 'restaurant_license', 'violation_count'],
     'google_ratings': ['id', 'restaurant_id', 'rating', 'user_ratings_total']
 }
 
@@ -73,7 +73,7 @@ for csv_name in CSV_FILES:
             col_idx = df.columns.get_loc(col) + 1
             col_letter = chr(64 + col_idx)
             
-            if col in ['id', 'restaurant_id', 'license_number', 'inspection_id', 'user_ratings_total', 'zip', 'violation_count']:
+            if col in ['id', 'restaurant_id', 'license_number', 'user_ratings_total', 'zip', 'violation_count']:
                 pattern = "0"
             else:
                 pattern = "0.0##"
