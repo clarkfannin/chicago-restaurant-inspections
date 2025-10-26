@@ -5,7 +5,8 @@ import os
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
-# Targeted clean-up for biggest chains
+
+#Targeted clean-up for biggest chains
 CHAIN_VARIANTS = {
     "popeyes": ["popeyes", "popeye's"],
     "wendy's": ["wendys", "wendy's"],
@@ -25,7 +26,6 @@ if not SUPABASE_DB_URL:
 
 parsed_url = urlparse(SUPABASE_DB_URL)
 
-
 def get_connection():
     print("Connecting to Supabase...", flush=True)
     conn = psycopg2.connect(
@@ -38,9 +38,8 @@ def get_connection():
     print("Connected!", flush=True)
     return conn
 
-
 def fetch_inspection_data(conn):
-
+    
     print("Checking last inspection date in DB...", flush=True)
     cur = conn.cursor()
     cur.execute("SELECT MAX(inspection_date) FROM inspections;")
@@ -68,6 +67,8 @@ def fetch_inspection_data(conn):
     print(f"Fetched {len(data)} records from JSON API.", flush=True)
 
     df = pd.DataFrame(data)
+    df.columns = [col.strip().replace("_", " ").title() for col in df.columns]
+
     return df
 
 
@@ -78,8 +79,7 @@ def clean_data(df):
         else:
             raise KeyError("Expected column 'inspection_date' or 'Inspection Date' not found.")
 
-    df["Inspection Date"] = pd.to_datetime(
-        df["Inspection Date"], errors="coerce")
+    df["Inspection Date"] = pd.to_datetime(df["Inspection Date"], errors="coerce")
 
     df = df.dropna(subset=["Inspection Date"])
 
@@ -89,15 +89,13 @@ def clean_data(df):
 
     return df
 
-
 def standardize_chain_names(df):
     df["AKA Name"] = df["AKA Name"].astype(str)
 
     for canonical, variants in CHAIN_VARIANTS.items():
         for variant in variants:
             mask = df["AKA Name"].str.contains(variant, case=False, na=False)
-            # overwrite directly and make uppercase
-            df.loc[mask, "AKA Name"] = canonical.upper()
+            df.loc[mask, "AKA Name"] = canonical.upper()  # overwrite directly and make uppercase
 
     return df
 
@@ -137,13 +135,11 @@ def insert_restaurants(df, conn):
             ))
             inserted += 1
         except Exception as e:
-            print(
-                f"Error inserting restaurant {row['License #']}: {e}", flush=True)
+            print(f"Error inserting restaurant {row['License #']}: {e}", flush=True)
 
     conn.commit()
     cur.close()
     print(f"Inserted/updated {inserted} restaurants", flush=True)
-
 
 def insert_inspections(df, conn):
     print("Inserting new inspections...", flush=True)
@@ -160,26 +156,23 @@ def insert_inspections(df, conn):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (id) DO NOTHING;
             """, (
-                int(row['Inspection ID']) if pd.notna(
-                    row['Inspection ID']) else None,  # id
+                int(row['Inspection ID']) if pd.notna(row['Inspection ID']) else None,  # id
                 int(row['License #']) if pd.notna(row['License #']) else None,
-                row['Inspection Date'].date() if pd.notna(
-                    row['Inspection Date']) else None,
+                row['Inspection Date'].date() if pd.notna(row['Inspection Date']) else None,
                 row['Inspection Type'],
                 row['Results'],
                 row['Risk'],
                 row['Violations'] if pd.notna(row['Violations']) else None
             ))
 
+    
             inserted += 1
         except Exception as e:
-            print(
-                f"Error inserting inspection {row.get('Inspection ID', 'unknown')}: {e}", flush=True)
+            print(f"Error inserting inspection {row.get('Inspection ID', 'unknown')}: {e}", flush=True)
 
     conn.commit()
     cur.close()
     print(f"Inserted {inserted} new inspections", flush=True)
-
 
 def main():
     start_time = datetime.now()
@@ -200,13 +193,11 @@ def main():
 
         conn.close()
         duration = (datetime.now() - start_time).total_seconds()
-        print(
-            f"\nData load completed successfully in {duration:.2f} seconds", flush=True)
+        print(f"\nData load completed successfully in {duration:.2f} seconds", flush=True)
 
     except Exception as e:
         print(f"\nError during data load: {e}", flush=True)
         raise
-
 
 if __name__ == "__main__":
     main()
