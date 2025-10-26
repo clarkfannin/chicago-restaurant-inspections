@@ -5,7 +5,6 @@ import os
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
-
 #Targeted clean-up for biggest chains
 CHAIN_VARIANTS = {
     "popeyes": ["popeyes", "popeye's"],
@@ -67,29 +66,10 @@ def fetch_inspection_data(conn):
     print(f"Fetched {len(data)} records from JSON API.", flush=True)
 
     df = pd.DataFrame(data)
-    df.columns = [col.strip().replace("_", " ").title() for col in df.columns]
-    rename_map = {
-        "License": "License #",
-        "License ": "License #",
-        "Inspection Id": "Inspection ID",
-        "Inspection Type": "Inspection Type",
-        "Dba Name": "DBA Name",
-        "Aka Name": "AKA Name",
-}
-    df.rename(columns=rename_map, inplace=True)
-
     return df
 
-
-
-
 def clean_data(df):
-    if "Inspection Date" not in df.columns:
-        if "Inspectiondate" in df.columns:
-            df.rename(columns={"Inspectiondate": "Inspection Date"}, inplace=True)
-        else:
-            raise KeyError("Expected column 'inspection_date' or 'Inspection Date' not found.")
-
+    
     df["Inspection Date"] = pd.to_datetime(df["Inspection Date"], errors="coerce")
 
     df = df.dropna(subset=["Inspection Date"])
@@ -109,9 +89,6 @@ def standardize_chain_names(df):
             df.loc[mask, "AKA Name"] = canonical.upper()  # overwrite directly and make uppercase
 
     return df
-
-
-
 
 def insert_restaurants(df, conn):
     print("Inserting/updating restaurants...", flush=True)
@@ -163,14 +140,13 @@ def insert_inspections(df, conn):
         try:
             cur.execute("""
                 INSERT INTO inspections (
-                    id, inspection_id, restaurant_license,
+                    id, restaurant_license,
                     inspection_date, inspection_type, result, risk, violations, created_at
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (id) DO NOTHING;
             """, (
                 int(row['Inspection ID']) if pd.notna(row['Inspection ID']) else None,  # id
-                int(row['Inspection ID']) if pd.notna(row['Inspection ID']) else None,  # inspection_id (duplicate of id)
                 int(row['License #']) if pd.notna(row['License #']) else None,
                 row['Inspection Date'].date() if pd.notna(row['Inspection Date']) else None,
                 row['Inspection Type'],

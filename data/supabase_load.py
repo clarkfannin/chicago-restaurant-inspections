@@ -2,7 +2,6 @@ import os
 import psycopg2
 from urllib.parse import urlparse
 
-# --- configure connections ---
 LOCAL_DB_URL = "postgresql://clarkfannin@localhost:5432/chicago_inspections"
 SUPABASE_DB_URL = "postgresql://postgres.arfutvgrtgogpyaeoftv:FenderJaguar2003!@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
 
@@ -28,14 +27,12 @@ def migrate_table(table_name, key_column, batch_size=1000):
     local_cur = local_conn.cursor()
     supabase_cur = supabase_conn.cursor()
 
-    # fetch all rows from local
     local_cur.execute(f"SELECT * FROM {table_name};")
     rows = local_cur.fetchall()
     columns = [desc[0] for desc in local_cur.description]
 
     print(f"Fetched {len(rows)} rows from local {table_name}")
 
-    # build insert statement
     col_names = ', '.join(columns)
     placeholders = ', '.join(['%s'] * len(columns))
     update_set = ', '.join([f"{col}=EXCLUDED.{col}" for col in columns if col != key_column])
