@@ -23,7 +23,7 @@ NUMERIC_COLUMNS = {
     'restaurants': ['id', 'license_number', 'zip', 'latitude', 'longitude'],
     'inspections': ['id', 'restaurant_license', 'violation_count'],
     'google_ratings': ['id', 'restaurant_id', 'rating', 'user_ratings_total'],
-    'inspection_categories': ['id', 'restaurant_license', 'violation_category', 'category_violation_count']
+    'inspection_categories': ['id', 'restaurant_license', 'zip', 'category_violation_count']
 }
 
 def hash_df(df):
