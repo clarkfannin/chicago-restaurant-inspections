@@ -42,13 +42,13 @@ def build_facility_filter():
     return " OR ".join(conditions)
 
 
-def export_inspections(output_dir='dumps'):
+def export_inspection_categories(output_dir='dumps'):
     os.makedirs(output_dir, exist_ok=True)
     facility_filter = build_facility_filter()
 
     query = f"""
-    SELECT i.id, i.restaurant_license, i.inspection_date, i.inspection_type,
-           i.result, i.risk, i.violations, r.dba_name, r.address, r.zip
+    SELECT i.id, i.restaurant_license, i.inspection_date, i.result, i.violations,
+           r.dba_name, r.address, r.zip
     FROM inspections i
     JOIN restaurants r ON i.restaurant_license = r.license_number
     WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
@@ -58,37 +58,33 @@ def export_inspections(output_dir='dumps'):
     """
 
     df = pd.read_sql(text(query), engine)
-    print(f"Queried inspections — rows fetched: {len(df)}", flush=True)
+    print(f"Fetched {len(df)} inspections", flush=True)
+
+    df = df[df['violations'].notna() & df['violations'].str.strip().ne('')]
+    print(f"Remaining after filtering non-violation inspections: {len(df)}", flush=True)
 
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_categories'] = df['violation_codes'].apply(map_categories)
-    df['violation_count'] = df['violation_codes'].apply(lambda x: len(x.split(',')) if x else 0)
+
+    df = df[df['violation_categories'].notna() & df['violation_categories'].ne('')]
 
     df_expanded = (
-        df[['id', 'violation_categories']]
+        df[['id', 'restaurant_license', 'inspection_date', 'result', 'dba_name', 'address', 'zip', 'violation_categories']]
         .assign(violation_category=lambda d: d['violation_categories'].str.split(', '))
         .explode('violation_category')
         .dropna(subset=['violation_category'])
     )
 
-    category_counts = (
-        df_expanded.groupby(['id', 'violation_category'])
-        .size()
-        .reset_index(name='category_violation_count')
+    df_expanded['category_violation_count'] = (
+        df_expanded.groupby(['id', 'violation_category'])['violation_category'].transform('count')
     )
 
-    df_merged = df.merge(category_counts, on='id', how='left')
+    df_expanded = df_expanded.replace([float('inf'), float('-inf')], float('nan')).fillna('')
 
-    df_merged = df_merged.drop(['violations'], axis=1)
-    df_merged = df_merged.replace([float('inf'), float('-inf')], float('nan')).fillna('')
-    summary_out = os.path.join(output_dir, 'inspections_summary.csv')
-    expanded_out = os.path.join(output_dir, 'inspection_categories.csv')
+    output = os.path.join(output_dir, 'inspection_categories.csv')
+    df_expanded.to_csv(output, index=False)
+    print(f"Exported {len(df_expanded):,} rows to {output}")
 
-    df.to_csv(summary_out, index=False)
-    df_merged.to_csv(expanded_out, index=False)
-
-    print(f"Inspections summary: {len(df):,} rows")
-    print(f"Expanded categories: {len(df_merged):,} rows")
 
 
 
