@@ -85,7 +85,27 @@ def export_inspection_categories(output_dir='dumps'):
     df_expanded.to_csv(output, index=False)
     print(f"Exported {len(df_expanded):,} rows to {output}")
 
+def export_inspections(output_dir='dumps'):
+    os.makedirs(output_dir, exist_ok=True)
+    facility_filter = build_facility_filter()
 
+    query = f"""
+    SELECT i.id, i.restaurant_license, i.inspection_date, i.result, i.violations,
+           r.dba_name, r.address, r.zip
+    FROM inspections i
+    JOIN restaurants r ON i.restaurant_license = r.license_number
+    WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
+      AND ({facility_filter})
+      AND i.result != 'Out of Business'
+    ORDER BY i.inspection_date DESC
+    """
+
+    df = pd.read_sql(text(query), engine)
+    df = df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
+
+    output = os.path.join(output_dir, 'inspections.csv')
+    df.to_csv(output, index=False)
+    print(f"Inspections: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB", flush=True)
 
 
 def export_restaurants(output_dir='dumps'):
@@ -142,6 +162,8 @@ if __name__ == "__main__":
     print("Exporting food service establishments only...", flush=True)
     print(f"Including facilities matching: {', '.join(INCLUDED_FACILITY_KEYWORDS)}", flush=True)
     export_inspections()
+    export_inspection_categories()
     export_restaurants()
     export_google_ratings()
     print("Export complete!", flush=True)
+
