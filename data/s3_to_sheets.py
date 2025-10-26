@@ -7,7 +7,7 @@ from google.oauth2.service_account import Credentials
 import hashlib
 
 BUCKET_NAME = "inspection-data-dump"
-CSV_FILES = ["restaurants.csv", "inspections.csv", "google_ratings.csv"]
+CSV_FILES = ["restaurants.csv", "inspections.csv", "google_ratings.csv", "inspection_categories.csv"]
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 creds_json = os.environ["GOOGLE_SERVICE_ACCOUNT"]
@@ -22,7 +22,8 @@ s3 = boto3.client("s3")
 NUMERIC_COLUMNS = {
     'restaurants': ['id', 'license_number', 'zip', 'latitude', 'longitude'],
     'inspections': ['id', 'restaurant_license', 'violation_count'],
-    'google_ratings': ['id', 'restaurant_id', 'rating', 'user_ratings_total']
+    'google_ratings': ['id', 'restaurant_id', 'rating', 'user_ratings_total'],
+    'inspection_categories': ['id', 'restaurant_license', 'violation_category', 'category_violation_count']
 }
 
 def hash_df(df):
@@ -71,7 +72,7 @@ for csv_name in CSV_FILES:
         if col in df.columns:
             col_idx = df.columns.get_loc(col) + 1
             col_letter = chr(64 + col_idx)
-            pattern = "0" if col in ['id', 'restaurant_id', 'license_number', 'user_ratings_total', 'zip', 'violation_count'] else "0.0##"
+            pattern = "0" if col in ['id', 'restaurant_id', 'license_number', 'user_ratings_total', 'zip', 'violation_count', 'category_violation_count'] else "0.0##"
             ws.format(f'{col_letter}2:{col_letter}', {"numberFormat": {"type": "NUMBER", "pattern": pattern}})
     
     print(f"Synced {len(df)} rows", flush=True)
