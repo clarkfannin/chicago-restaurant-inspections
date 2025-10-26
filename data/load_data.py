@@ -162,7 +162,7 @@ def insert_inspections(df, conn):
                     id, restaurant_license,
                     inspection_date, inspection_type, result, risk, violations, created_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (id) DO NOTHING;
             """, (
                 int(row['Inspection ID']) if pd.notna(row['Inspection ID']) else None,  # id
