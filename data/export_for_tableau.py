@@ -58,6 +58,7 @@ def export_inspections(facility_filter):
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df = df.drop(columns=['violations'])
     output = os.path.join(OUTPUT_DIR, 'inspections.csv')
+    df['inspection_date'] = pd.to_datetime(df['inspection_date']).dt.strftime('%Y-%m-%d')
     df.to_csv(output, index=False)
     print(f"Inspections: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB")
 
@@ -88,6 +89,7 @@ def export_inspection_categories(facility_filter):
         df_expanded.groupby(['id', 'violation_category'])['violation_category'].transform('count')
     )
     output = os.path.join(OUTPUT_DIR, 'inspection_categories.csv')
+    df_expanded['inspection_date'] = pd.to_datetime(df_expanded['inspection_date']).dt.strftime('%Y-%m-%d')
     df_expanded.to_csv(output, index=False)
     print(f"Exported {len(df_expanded):,} rows to {output}")
 
