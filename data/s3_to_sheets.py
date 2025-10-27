@@ -26,12 +26,18 @@ NUMERIC_COLUMNS = {
     'inspection_categories': ['id', 'restaurant_license', 'zip', 'category_violation_count']
 }
 
+DATE_COLUMNS = {
+    'inspections': ['inspection_date'],
+    'inspection_categories': ['inspection_date']
+}
+
 def hash_df(df):
     df_str = df.to_csv(index=False)
     return hashlib.md5(df_str.encode('utf-8')).hexdigest()
 
 for csv_name in CSV_FILES:
     print(f"Syncing {csv_name}...", flush=True)
+    
     obj = s3.get_object(Bucket=BUCKET_NAME, Key=csv_name)
     df = pd.read_csv(io.BytesIO(obj["Body"].read()))
     
@@ -39,18 +45,23 @@ for csv_name in CSV_FILES:
     
     table_name = os.path.splitext(csv_name)[0]
     numeric_cols = NUMERIC_COLUMNS.get(table_name, [])
-    
-    for col in df.columns:
-        if col not in numeric_cols:
-            df[col] = df[col].fillna('')
+    date_cols = DATE_COLUMNS.get(table_name, [])
     
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
-
+    
+    for col in date_cols:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+    
+    for col in df.columns:
+        if col not in numeric_cols + date_cols:
+            df[col] = df[col].fillna('')
+    
     sheet_tab = table_name
     new_hash = hash_df(df)
-
+    
     try:
         ws = sh.worksheet(sheet_tab)
         existing = ws.get_all_values()
@@ -64,8 +75,8 @@ for csv_name in CSV_FILES:
         ws.clear()
     except gspread.WorksheetNotFound:
         ws = sh.add_worksheet(title=sheet_tab, rows=str(len(df)+10), cols=str(len(df.columns)))
-
-    data = [df.columns.values.tolist()] + df.astype(str).values.tolist()
+    
+    data = [df.columns.values.tolist()] + df.values.tolist()
     ws.update(data)
     
     for col in numeric_cols:
