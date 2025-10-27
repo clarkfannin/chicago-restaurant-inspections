@@ -40,6 +40,8 @@ def sanitize_df(df, table_name):
     for col in date_cols:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%Y-%m-%d')
+            df[col] = df[col].astype(str)
+            df[col] = df[col].replace('NaT', '')
     for col in df.columns:
         if col not in numeric_cols + date_cols:
             df[col] = df[col].fillna('')
