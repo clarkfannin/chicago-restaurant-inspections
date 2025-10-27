@@ -28,7 +28,7 @@ def build_facility_filter():
 
 def read_sql_clean(query):
     df = pd.read_sql(text(query), engine)
-    return df.replace([float('inf'), float('-inf')], float('nan')).fillna('')
+    return df.replace([float('inf'), float('-inf')], pd.NA).fillna('')
 
 def extract_codes(text):
     if not text or pd.isna(text):
@@ -56,11 +56,10 @@ def export_inspections(facility_filter):
     """
     df = read_sql_clean(query)
     df['violation_codes'] = df['violations'].apply(extract_codes)
-    df = df.drop(columns=['violations'])
-    output = os.path.join(OUTPUT_DIR, 'inspections.csv')
     df['inspection_date'] = pd.to_datetime(df['inspection_date']).dt.strftime('%Y-%m-%d')
-    df.to_csv(output, index=False)
-    print(f"Inspections: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB")
+    df = df.drop(columns=['violations'])
+    df.to_csv(os.path.join(OUTPUT_DIR, 'inspections.csv'), index=False)
+    print(f"Inspections: {len(df):,} rows")
 
 def export_inspection_categories(facility_filter):
     query = f"""
@@ -71,14 +70,12 @@ def export_inspection_categories(facility_filter):
     WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
       AND ({facility_filter})
       AND i.result != 'Out of Business'
-    ORDER BY i.inspection_date DESC
     """
     df = read_sql_clean(query)
     df = df[df['violations'].notna() & df['violations'].str.strip().ne('')]
     df['violation_codes'] = df['violations'].apply(extract_codes)
     df['violation_category'] = df['violation_codes'].apply(map_categories)
     df = df[df['violation_category'].notna() & df['violation_category'].ne('')]
-    
     df_expanded = (
         df[['id', 'restaurant_license', 'inspection_date', 'result', 'dba_name', 'address', 'zip', 'violation_category']]
         .assign(violation_category=lambda d: d['violation_category'].str.split(', '))
@@ -88,10 +85,9 @@ def export_inspection_categories(facility_filter):
     df_expanded['category_violation_count'] = (
         df_expanded.groupby(['id', 'violation_category'])['violation_category'].transform('count')
     )
-    output = os.path.join(OUTPUT_DIR, 'inspection_categories.csv')
     df_expanded['inspection_date'] = pd.to_datetime(df_expanded['inspection_date']).dt.strftime('%Y-%m-%d')
-    df_expanded.to_csv(output, index=False)
-    print(f"Exported {len(df_expanded):,} rows to {output}")
+    df_expanded.to_csv(os.path.join(OUTPUT_DIR, 'inspection_categories.csv'), index=False)
+    print(f"Inspection categories: {len(df_expanded):,} rows")
 
 def export_restaurants(facility_filter):
     query = f"""
@@ -105,9 +101,8 @@ def export_restaurants(facility_filter):
     AND ({facility_filter})
     """
     df = read_sql_clean(query)
-    output = os.path.join(OUTPUT_DIR, 'restaurants.csv')
-    df.to_csv(output, index=False)
-    print(f"Restaurants: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB")
+    df.to_csv(os.path.join(OUTPUT_DIR, 'restaurants.csv'), index=False)
+    print(f"Restaurants: {len(df):,} rows")
 
 def export_google_ratings(facility_filter):
     query = f"""
@@ -125,13 +120,10 @@ def export_google_ratings(facility_filter):
     )
     """
     df = read_sql_clean(query)
-    output = os.path.join(OUTPUT_DIR, 'google_ratings.csv')
-    df.to_csv(output, index=False)
-    print(f"Google Ratings: {len(df):,} rows, {os.path.getsize(output)/(1024*1024):.2f} MB")
+    df.to_csv(os.path.join(OUTPUT_DIR, 'google_ratings.csv'), index=False)
+    print(f"Google Ratings: {len(df):,} rows")
 
 if __name__ == "__main__":
-    print("Exporting food service establishments only...")
-    print(f"Including facilities matching: {', '.join(INCLUDED_FACILITY_KEYWORDS)}")
     facility_filter = build_facility_filter()
     export_inspections(facility_filter)
     export_inspection_categories(facility_filter)
