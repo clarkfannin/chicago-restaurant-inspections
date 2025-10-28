@@ -3,3 +3,4 @@ scheduler.py
 sync_to_sheets.py
 credentials.json
 setup_database.py
+sheets_connector/credentials.json
