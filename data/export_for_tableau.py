@@ -76,40 +76,37 @@ def export_inspections(facility_filter):
 def export_inspection_categories(facility_filter):
     query = f"""
     SELECT i.id, i.restaurant_license, i.inspection_date, i.result, i.violations,
-        r.dba_name, r.address, r.zip
+           r.dba_name, r.address, r.zip
     FROM inspections i
     JOIN restaurants r ON i.restaurant_license = r.license_number
     WHERE i.inspection_date > CURRENT_DATE - INTERVAL '5 years'
-        AND ({facility_filter})
-        AND i.result != 'Out of Business'
+      AND ({facility_filter})
+      AND i.result != 'Out of Business'
     """
     df = read_sql_clean(query)
 
     df = df[df['violations'].notna() & df['violations'].str.strip().ne('')]
-
+    
     df['violation_codes'] = df['violations'].apply(extract_codes)
-
+    
     df['violation_code_list'] = df['violation_codes'].str.split(',')
-
+    
     df_codes = df.explode('violation_code_list')
-
-    df_codes['violation_category'] = df_codes['violation_code_list'].map(
-        lambda x: VIOLATION_CATEGORIES.get(int(x)) if x else None)
-
+    
+    df_codes['violation_category'] = df_codes['violation_code_list'].map(lambda x: VIOLATION_CATEGORIES.get(int(x)) if x else None)
+    
     df_codes = df_codes.dropna(subset=['violation_category'])
+    
+    df_codes['category_violation_count'] = df_codes.groupby(['id', 'violation_category'])['violation_code_list'].transform('count')
 
-    df_codes['category_violation_count'] = df_codes.groupby(
-        ['id', 'violation_category'])['violation_code_list'].transform('count')
+    df_expanded = df_codes.drop(columns=['violations', 'violation_codes', 'violation_code_list']) \
+                        .drop_duplicates(subset=['id', 'violation_category'])
 
-    df_expanded = df_codes.drop(columns=['violation_codes', 'violation_code_list']).drop_duplicates(
-        subset=['id', 'violation_category'])
+    df_expanded['inspection_date'] = pd.to_datetime(df_expanded['inspection_date']).dt.strftime('%Y-%m-%d')
 
-    df_expanded['inspection_date'] = pd.to_datetime(
-        df_expanded['inspection_date']).dt.strftime('%Y-%m-%d')
-
-    df_expanded.to_csv(os.path.join(
-        OUTPUT_DIR, 'inspection_categories.csv'), index=False)
+    df_expanded.to_csv(os.path.join(OUTPUT_DIR, 'inspection_categories.csv'), index=False)
     print(f"Inspection categories: {len(df_expanded):,} rows")
+
 
 
 def export_restaurants(facility_filter):
