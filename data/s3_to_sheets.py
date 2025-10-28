@@ -16,8 +16,8 @@ NUMERIC_COLUMNS = {
     'inspection_categories': ['id', 'restaurant_license', 'zip', 'category_violation_count']
 }
 
-creds_json = os.environ["GOOGLE_SERVICE_ACCOUNT"]
-creds = Credentials.from_service_account_info(eval(creds_json), scopes=SCOPES)
+creds_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "gcp-credentials.json")
+creds = Credentials.from_service_account_file(creds_file, scopes=SCOPES)
 gc = gspread.authorize(creds)
 SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
 sh = gc.open_by_key(SHEET_ID)

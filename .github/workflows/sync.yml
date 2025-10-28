@@ -54,8 +54,14 @@ jobs:
             aws s3 cp "$csv_file" s3://inspection-data-dump/
           done
 
+      - name: Decode Google Credentials
+        env:
+          GCP_CREDS_BASE64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$GCP_CREDS_BASE64" | base64 -d > gcp-credentials.json
+
       - name: Sync S3 CSVs to Google Sheets
         run: python data/s3_to_sheets.py
         env:
-          GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
+          GOOGLE_APPLICATION_CREDENTIALS: gcp-credentials.json
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
